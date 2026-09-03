@@ -1,0 +1,2702 @@
+<!DOCTYPE html>
+<!--
+  Sideman — mix analyzer / virtual sound engineer for live and recorded audio.
+  Built by Benji (GitHub: benjoOBS).
+  Please leave this notice intact — stripping copyright-management
+  information is its own separate violation in most jurisdictions
+  (including the Philippines, via IP Code provisions implementing the
+  WIPO Copyright Treaty), on top of any underlying copying.
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sideman — Mix Analyzer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#14171A; --panel:#1B1F23; --panel-2:#20252A; --border:#2B3036;
+    --text:#ECE9E4; --text-dim:#8B9198; --text-faint:#565C63;
+    --accent:#E8A33D; --accent-dim:#8A6528;
+    --danger:#E8503D; --good:#6FCF97;
+    --sub:#C0392B; --bass:#E67E22; --lowmid:#DDB84D; --mid:#6FCF97;
+    --himid:#4FD1C5; --presence:#4A90D9; --air:#9B6FD9;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; padding:0; height:100%; background:var(--bg); color:var(--text);
+    font-family:'Inter',sans-serif; overscroll-behavior:none;}
+  h1,h2,h3,.label,.tabbar button,.instr-name,.style-name{font-family:'Oswald',sans-serif;}
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  #app{display:flex; flex-direction:column; height:100vh; height:100dvh; max-width:640px; margin:0 auto;
+    padding-top:var(--safe-top);}
+
+  header{padding:14px 16px 10px; border-bottom:1px solid var(--border); flex-shrink:0;}
+  header .top-row{display:flex; align-items:baseline; justify-content:space-between;}
+  header h1{margin:0; font-size:20px; font-weight:600; letter-spacing:.02em;}
+  header h1 span{color:var(--accent);}
+  header .status{font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.08em;}
+
+  .source-row{display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;}
+  .source-row button{flex:1 1 30%; min-width:96px;}
+  .btn{
+    background:var(--panel-2); color:var(--text); border:1px solid var(--border);
+    border-radius:6px; padding:10px 12px; font-family:'Inter',sans-serif; font-size:13px;
+    font-weight:500; cursor:pointer;
+  }
+  .btn:active{transform:translateY(1px);}
+  .btn.active{background:var(--accent); color:#1B1400; border-color:var(--accent);}
+  .btn.primary{background:var(--accent); color:#1B1400; border-color:var(--accent); font-weight:600;}
+  .btn.primary:disabled{background:var(--panel-2); color:var(--text-faint); border-color:var(--border);}
+  .btn.danger{background:transparent; color:var(--danger); border-color:var(--danger);}
+  .btn.ghost{background:transparent;}
+  .btn.small{padding:6px 10px; font-size:12px;}
+  .btn.full{width:100%;}
+
+  main{flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch;}
+  .tab{display:none; padding:14px 16px 24px;}
+  .tab.active{display:block;}
+
+  /* ---- Analyzer tab ---- */
+  #spectrum-wrap{position:relative; background:var(--panel); border:1px solid var(--border);
+    border-radius:8px; overflow:hidden; margin-bottom:12px;}
+  canvas#spectrum{display:block; width:100%; height:220px;}
+  #spectrum-empty{position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    text-align:center; padding:20px; color:var(--text-dim); font-size:13px; line-height:1.5;}
+
+  .meterRow{display:flex; align-items:center; gap:10px; margin-bottom:14px;}
+  .meterTrack{flex:1; height:10px; background:var(--panel-2); border-radius:5px; overflow:hidden; border:1px solid var(--border);}
+  .meterFill{height:100%; width:0%; background:linear-gradient(90deg,var(--good),var(--accent) 75%,var(--danger) 92%);
+    transition:width .06s linear;}
+  .meterLabel{font-size:11px; color:var(--text-dim); width:74px; text-align:right;}
+
+  .bandGrid{display:grid; grid-template-columns:repeat(7,1fr); gap:4px; margin-bottom:16px;}
+  .bandCell{background:var(--panel); border:1px solid var(--border); border-radius:6px; padding:6px 2px;
+    text-align:center;}
+  .bandCell .swatch{width:14px; height:4px; border-radius:2px; margin:0 auto 5px;}
+  .bandCell .bl{font-size:9px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.03em;}
+  .bandCell .bv{font-size:12px; margin-top:2px;}
+
+  .panel{background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:14px; margin-bottom:12px;}
+  .panel h3{margin:0 0 10px; font-size:14px; font-weight:500; letter-spacing:.02em; color:var(--text-dim);}
+  .sliderRow{display:flex; align-items:center; gap:10px; margin-bottom:10px;}
+  .sliderRow:last-child{margin-bottom:0;}
+  .sliderRow label{font-size:12px; color:var(--text-dim); width:110px; flex-shrink:0;}
+  .sliderRow input[type=range]{flex:1; accent-color:var(--accent);}
+  .sliderRow .val{width:44px; text-align:right; font-size:12px; color:var(--text);}
+
+  #file-controls{display:none; margin-top:10px;}
+  #file-controls.show{display:block;}
+  #file-controls .transport{display:flex; align-items:center; gap:8px; margin-top:8px;}
+  #seek{flex:1; accent-color:var(--accent);}
+
+  /* ---- Capture tab ---- */
+  .instrItem{display:flex; align-items:center; gap:10px; background:var(--panel); border:1px solid var(--border);
+    border-radius:8px; padding:10px 12px; margin-bottom:8px;}
+  .instrItem .dot{width:10px; height:10px; border-radius:50%; flex-shrink:0;}
+  .instrItem .meta{flex:1; min-width:0;}
+  .instr-name{font-size:14px; font-weight:500;}
+  .instrItem input.instr-name-edit{background:transparent; border:none; color:var(--text); font-family:'Oswald',sans-serif;
+    font-size:14px; font-weight:500; width:100%; padding:0;}
+  .instr-sub{font-size:11px; color:var(--text-dim); margin-top:1px;}
+  .instrItem .mini{width:52px; height:24px; flex-shrink:0;}
+  .instrItem .actions{display:flex; gap:6px; flex-shrink:0;}
+  #instrList{margin-bottom:14px;}
+  .addRow{display:flex; gap:8px; margin-bottom:16px;}
+  #newInstrName{flex:1; background:var(--panel-2); border:1px solid var(--border); border-radius:6px;
+    color:var(--text); padding:9px 10px; font-family:'Inter',sans-serif; font-size:13px;}
+
+  .guideOverlay{position:fixed; inset:0; background:rgba(10,12,14,.92); z-index:50; display:none;
+    flex-direction:column; align-items:center; justify-content:center; padding:30px; text-align:center;
+    overflow-y:auto; -webkit-overflow-scrolling:touch;}
+  .guideOverlay.show{display:flex;}
+  .guideOverlay .gi{font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--accent); margin-bottom:10px;}
+  .guideOverlay .gname{font-size:34px; font-weight:600; margin-bottom:6px; font-family:'Oswald',sans-serif;}
+  .guideOverlay .gsub{color:var(--text-dim); font-size:14px; margin-bottom:26px;}
+  .guideOverlay .gcount{font-size:56px; font-weight:700; font-family:'IBM Plex Mono',monospace; color:var(--accent); margin-bottom:26px; min-height:66px;}
+  .guideOverlay .gbtns{display:flex; gap:10px; width:100%; max-width:320px;}
+  .guideOverlay .gbtns button{flex:1;}
+  .guideOverlay .gmeter{width:100%; max-width:320px; height:8px; background:var(--panel-2); border-radius:4px;
+    overflow:hidden; margin-bottom:26px; border:1px solid var(--border);}
+  .guideOverlay .gmeter-fill{height:100%; width:0%; background:var(--accent);}
+  .guideOverlay .gnarrative{width:100%; max-width:340px; max-height:36vh; overflow-y:auto; text-align:left;
+    margin-bottom:16px; -webkit-overflow-scrolling:touch;}
+
+  /* ---- Mix check tab ---- */
+  .recCard{background:var(--panel); border:1px solid var(--border); border-left:3px solid var(--accent);
+    border-radius:6px; padding:12px 14px; margin-bottom:10px;}
+  .recCard.conflict{border-left-color:var(--danger);}
+  .recCard.balance-hot{border-left-color:var(--presence);}
+  .recCard.balance-low{border-left-color:var(--himid);}
+  .recCard .rtag{font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:var(--text-dim); margin-bottom:5px;}
+  .recCard .rtitle{font-size:14px; font-weight:600; margin-bottom:5px;}
+  .recCard .rbody{font-size:13px; color:var(--text-dim); line-height:1.5;}
+  .recEmpty{color:var(--text-dim); font-size:13px; text-align:center; padding:30px 10px; line-height:1.6;}
+  .narrLine{font-size:13.5px; color:var(--text); line-height:1.5;}
+
+  .miniCompare{display:flex; align-items:flex-end; gap:3px; height:60px; margin:10px 0;}
+  .miniCompare .col{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%;}
+  .miniCompare .bar{width:60%; border-radius:2px 2px 0 0;}
+  .miniCompare .cl{font-size:8px; color:var(--text-faint); margin-top:3px;}
+
+  /* ---- Style tab ---- */
+  .styleCard{background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:14px;
+    margin-bottom:10px; cursor:pointer;}
+  .styleCard.selected{border-color:var(--accent); background:var(--panel-2);}
+  .styleCard .style-name{font-size:15px; font-weight:600; margin-bottom:4px; display:flex; align-items:center; gap:8px;}
+  .styleCard .style-name .pick{width:8px; height:8px; border-radius:50%; border:1.5px solid var(--text-faint);}
+  .styleCard.selected .style-name .pick{background:var(--accent); border-color:var(--accent);}
+  .styleCard .style-desc{font-size:12.5px; color:var(--text-dim); line-height:1.5;}
+  .curveMini{height:34px; margin-top:10px;}
+
+  /* ---- Log tab ---- */
+  .logItem{background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:12px 14px; margin-bottom:8px;}
+  .logItem .lt{font-size:11px; color:var(--text-dim); margin-bottom:4px;}
+  .logItem .ls{font-size:13px;}
+
+  /* ---- Venue tab ---- */
+  .qBlock{margin-bottom:16px;}
+  .qBlock:last-child{margin-bottom:0;}
+  .qText{font-size:13.5px; font-weight:500;}
+  .qOpts{display:flex; flex-wrap:wrap; gap:6px; margin:8px 0;}
+  .qCaption{font-size:11.5px; color:var(--text-faint); line-height:1.5; margin-top:2px;}
+  .textInput{background:var(--panel-2); border:1px solid var(--border); border-radius:6px;
+    color:var(--text); padding:9px 10px; font-family:'Inter',sans-serif; font-size:13px; width:100%;}
+
+  #camPreview{width:100%; border-radius:6px; background:#000; margin-top:10px; display:block;}
+  #stageImageWrap{position:relative; margin-top:10px;}
+  #stageCanvas{width:100%; border-radius:6px; display:block; cursor:crosshair;}
+  #pinLayer{position:absolute; left:0; top:0; pointer-events:none;}
+  .pinDot{position:absolute; transform:translate(-50%,-100%); display:flex; flex-direction:column;
+    align-items:center; pointer-events:none;}
+  .pinDot .pinLabel{background:rgba(20,23,26,.85); color:var(--text); font-size:10px; padding:2px 6px;
+    border-radius:4px; margin-bottom:3px; white-space:nowrap; font-family:'IBM Plex Mono',monospace;}
+  .pinDot .pdot{width:10px; height:10px; border-radius:50%; background:var(--accent);
+    border:2px solid var(--bg); box-shadow:0 0 0 1px var(--accent);}
+
+  .recCard.venue{border-left-color:var(--accent);}
+  .recCard.room-mode{border-left-color:var(--sub);}
+  .recCard.harsh{border-left-color:var(--presence);}
+  .recCard.tone-thin{border-left-color:var(--mid);}
+  .recCard.tone-boxy{border-left-color:var(--lowmid);}
+  .recCard.noise-floor{border-left-color:var(--danger);}
+
+  /* pace-off overlay reuses .guideOverlay/.gbtns/.gname/.gsub/.gcount styling */
+  #paceOverlay .gcount{font-size:40px; min-height:auto; margin-bottom:14px;}
+  #paceOverlay .sliderRow{margin-bottom:16px;}
+  #paceOverlay .sliderRow label{width:90px;}
+
+  .tabbar{display:flex; border-top:1px solid var(--border); background:var(--panel); flex-shrink:0;
+    padding-bottom:var(--safe-bottom);}
+  .tabbar button{flex:1; background:none; border:none; color:var(--text-faint); padding:8px 1px 7px;
+    font-size:9px; letter-spacing:.02em; text-transform:uppercase; display:flex; flex-direction:column;
+    align-items:center; gap:3px; cursor:pointer;}
+  .tabbar button svg{width:18px; height:18px; stroke:var(--text-faint); fill:none; stroke-width:1.7;}
+  .tabbar button.active{color:var(--accent);}
+  .tabbar button.active svg{stroke:var(--accent);}
+
+  .note{font-size:11.5px; color:var(--text-faint); line-height:1.5; margin-top:4px;}
+  .sectionGap{height:4px;}
+  ::-webkit-scrollbar{display:none;}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header>
+    <div class="top-row">
+      <h1>Side<span>man</span></h1>
+      <div class="status" id="statusLine">Idle</div>
+    </div>
+    <div class="source-row">
+      <button class="btn active" id="srcMicBtn">Microphone</button>
+      <button class="btn" id="srcFileBtn">Recorded mix</button>
+      <button class="btn" id="srcSysBtn">System audio</button>
+    </div>
+    <div id="micDeviceRow" style="margin-top:8px;">
+      <select class="textInput" id="micDeviceSelect"><option value="">Default microphone</option></select>
+    </div>
+    <button class="btn primary full" id="startBtn" style="margin-top:8px;">Start</button>
+    <input type="file" id="fileInput" accept="audio/*" style="display:none">
+    <div id="file-controls">
+      <audio id="playerEl" style="display:none"></audio>
+      <div class="transport">
+        <button class="btn small" id="playPauseBtn">Play</button>
+        <input type="range" id="seek" min="0" max="100" value="0">
+        <span class="mono note" id="timeLabel">0:00</span>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- ANALYZER TAB -->
+    <section class="tab active" id="tab-analyzer">
+      <div id="spectrum-wrap">
+        <canvas id="spectrum"></canvas>
+        <div id="spectrum-empty">Tap Start and allow microphone access — or load a recorded mix — to see the live spectrum.</div>
+      </div>
+
+      <div class="meterRow">
+        <span class="meterLabel mono" id="levelLabel">— dB</span>
+        <div class="meterTrack"><div class="meterFill" id="levelFill"></div></div>
+      </div>
+
+      <div class="bandGrid" id="bandGrid"></div>
+
+      <div class="panel" id="micCompPanel">
+        <h3>Mic compensation (rough)</h3>
+        <div class="sliderRow">
+          <label>Low-end lift</label>
+          <input type="range" id="tiltBass" min="0" max="8" step="0.5" value="3">
+          <span class="val mono" id="tiltBassVal">+3 dB</span>
+        </div>
+        <div class="sliderRow">
+          <label>Air roll-off fix</label>
+          <input type="range" id="tiltAir" min="0" max="8" step="0.5" value="2">
+          <span class="val mono" id="tiltAirVal">+2 dB</span>
+        </div>
+        <div class="note">Phone mics under-report bass and roll off above ~10 kHz. These sliders nudge what you <em>see</em> on the curve and numbers below to compensate — they're a rough estimate, not a calibration file. Captures and recommendations always use the raw, uncompensated reading, so these sliders won't skew what counts as "too hot" or "too light."</div>
+      </div>
+
+      <div class="panel">
+        <h3>Noise floor</h3>
+        <div class="note" id="noiseFloorNote">Capture a few seconds of silence — nobody playing, room as it'll be during the show — so captured instruments can show how much headroom they actually have above it.</div>
+        <button class="btn full" id="captureNoiseFloorBtn" style="margin-top:10px;">Capture noise floor (4s)</button>
+      </div>
+
+      <div class="panel">
+        <h3>Audition an EQ move</h3>
+        <div class="note">Recorded Mix source only — a real EQ and compressor sitting on the playback, so you can actually hear whether a suggested cut helps before touching your real gear.</div>
+
+        <div class="sliderRow" style="margin-top:10px;">
+          <label>EQ</label>
+          <button class="btn small" id="previewEqToggle">Off</button>
+        </div>
+        <div class="sliderRow">
+          <label>Frequency</label>
+          <input type="range" id="previewEqFreq" min="1.3" max="4.2" step="0.01" value="3">
+          <span class="val mono" id="previewEqFreqVal">1.0k</span>
+        </div>
+        <div class="sliderRow">
+          <label>Gain</label>
+          <input type="range" id="previewEqGain" min="-18" max="18" step="0.5" value="0">
+          <span class="val mono" id="previewEqGainVal">0 dB</span>
+        </div>
+        <div class="sliderRow">
+          <label>Q (width)</label>
+          <input type="range" id="previewEqQ" min="0.3" max="10" step="0.1" value="1">
+          <span class="val mono" id="previewEqQVal">1.0</span>
+        </div>
+
+        <div class="sliderRow" style="margin-top:14px;">
+          <label>Compressor</label>
+          <button class="btn small" id="previewCompToggle">Off</button>
+        </div>
+        <div class="sliderRow">
+          <label>Threshold</label>
+          <input type="range" id="previewCompThresh" min="-60" max="0" step="1" value="-24">
+          <span class="val mono" id="previewCompThreshVal">-24 dB</span>
+        </div>
+        <div class="sliderRow">
+          <label>Ratio</label>
+          <input type="range" id="previewCompRatio" min="1" max="20" step="0.5" value="4">
+          <span class="val mono" id="previewCompRatioVal">4:1</span>
+        </div>
+        <div class="note" style="margin-top:8px;">This shapes what you hear from the loaded file right now \u2014 it doesn't change the file, isn't saved, and has nothing to do with your captures or recommendations.</div>
+      </div>
+    </section>
+
+    <!-- CAPTURE TAB -->
+    <section class="tab" id="tab-capture">
+      <div class="panel">
+        <h3>Guided session</h3>
+        <div class="note" style="margin-bottom:10px;">Walks through your instrument list one at a time — "Play Kick only" — and captures a few seconds of it so the app knows what each part sounds like in isolation.</div>
+        <button class="btn primary full" id="startGuideBtn">Start guided capture</button>
+      </div>
+
+      <div class="panel" id="narrativePanel" style="display:none;">
+        <h3 id="narrativeTitle">Latest capture</h3>
+        <div id="narrativeContent"></div>
+      </div>
+
+      <div class="panel">
+        <h3>Instruments</h3>
+        <div id="instrList"></div>
+        <div class="addRow">
+          <input type="text" id="newInstrName" placeholder="Add instrument or channel…">
+          <button class="btn" id="addInstrBtn">Add</button>
+        </div>
+        <button class="btn full" id="importInstrBtn">Import an instrument file</button>
+        <input type="file" id="instrFileInput" accept="application/json" style="display:none">
+        <div class="note" style="margin-top:10px;">Tap the name to rename an instrument. Each one gets an auto-guessed category (drums, bass, strings, keys, vocals) — override it if it's wrong; it only changes how the harshness/tone findings in Mix Check are worded, never what's compared against what. This list is the band roster the mix check compares against.</div>
+      </div>
+    </section>
+
+    <!-- VENUE TAB -->
+    <section class="tab" id="tab-venue">
+      <div class="panel" style="padding:12px 14px;">
+        <div style="display:flex; align-items:center; justify-content:space-between;">
+          <span class="qText" style="font-size:12.5px;">Measurements in</span>
+          <div style="display:flex; gap:6px;">
+            <button class="btn small active" id="unitMBtn">Meters</button>
+            <button class="btn small" id="unitFtBtn">Feet</button>
+          </div>
+        </div>
+        <div class="note" style="margin-top:6px;">This sets the units for room dimensions below and for the distance tools further down.</div>
+      </div>
+
+      <div class="panel">
+        <h3>What's the room like?</h3>
+
+        <div class="qBlock" data-q="roomType">
+          <div class="qText">What's this space most like?</div>
+          <div class="qOpts">
+            <button class="btn small" data-v="small">A small room</button>
+            <button class="btn small" data-v="mid">A mid-size hall</button>
+            <button class="btn small" data-v="big">A big open space</button>
+            <button class="btn small" data-v="outdoor">Outdoors</button>
+          </div>
+          <div class="qCaption">(A classroom or office is "small," a church sanctuary or function hall is "mid-size," a gym or warehouse is "big open." This roughly sets what engineers call the room's reverb time — how long sound rings after it stops.)</div>
+        </div>
+
+        <div class="qBlock" data-q="surfaces">
+          <div class="qText">What are the walls and floor mostly made of?</div>
+          <div class="qOpts">
+            <button class="btn small" data-v="hard">Hard — tile, concrete, glass</button>
+            <button class="btn small" data-v="mixed">A mix of hard and soft</button>
+            <button class="btn small" data-v="soft">Soft — carpet, curtains, padding</button>
+          </div>
+          <div class="qCaption">(Hard surfaces bounce sound around — engineers call that a "live" room. Soft surfaces soak it up — that's a "dead" or "treated" room.)</div>
+        </div>
+
+        <div class="qBlock" data-q="ceiling">
+          <div class="qText">How high is the ceiling?</div>
+          <div class="qOpts">
+            <button class="btn small" data-v="low">Low — like a classroom</button>
+            <button class="btn small" data-v="medium">Medium — like a hall</button>
+            <button class="btn small" data-v="high">High — like a gym</button>
+          </div>
+          <div class="qCaption">(More headroom generally means sound has more room to bounce before it reaches your ears.)</div>
+        </div>
+
+        <div class="qBlock" data-q="occupancy">
+          <div class="qText">Will the room be full of people, or mostly empty?</div>
+          <div class="qOpts">
+            <button class="btn small" data-v="packed">Packed / full crowd</button>
+            <button class="btn small" data-v="partial">Partly filled</button>
+            <button class="btn small" data-v="empty">Mostly empty</button>
+          </div>
+          <div class="qCaption">(People soak up sound like soft furniture does. A packed room almost always sounds different — usually tighter — than an empty one at soundcheck.)</div>
+        </div>
+
+        <div class="qBlock" data-q="mode">
+          <div class="qText">What are you mixing for?</div>
+          <div class="qOpts">
+            <button class="btn small" data-v="studio">Studio / recording</button>
+            <button class="btn small" data-v="live">Live performance</button>
+            <button class="btn small" data-v="livestream">Livestream</button>
+            <button class="btn small" data-v="live-livestream">Live + Livestream</button>
+          </div>
+          <div class="qCaption">(A tight, dry sound is often exactly right for a recording, but can just mean "that's the room" at a live show with natural reverberation. Livestream is its own case — your stream audience hears the room through a phone speaker or earbuds, where that same ambience often just reads as muddy, even in the same room as a live show.)</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>Room dimensions <span style="text-transform:none; font-weight:400; color:var(--text-faint);">(optional)</span></h3>
+        <div class="note" style="margin-bottom:10px;">If you know the room's rough size, I can flag low frequencies the room itself tends to build up.</div>
+        <div class="sliderRow"><label>Length</label><input type="number" class="textInput" id="dimL" step="0.1" placeholder="e.g. 15"><span class="val mono" id="dimUnitL">m</span></div>
+        <div class="sliderRow"><label>Width</label><input type="number" class="textInput" id="dimW" step="0.1" placeholder="e.g. 10"><span class="val mono" id="dimUnitW">m</span></div>
+        <div class="sliderRow"><label>Ceiling ht.</label><input type="number" class="textInput" id="dimH" step="0.1" placeholder="e.g. 4"><span class="val mono" id="dimUnitH">m</span></div>
+        <button class="btn primary full" id="calcModesBtn">Estimate room resonances</button>
+        <div id="modeResult" class="note" style="margin-top:10px;"></div>
+      </div>
+
+      <div class="panel">
+        <h3>Stage photo</h3>
+        <div class="note" id="stageNote">Take a photo of the stage or venue, then tap on it to drop labeled pins — mic positions, speakers, instruments.</div>
+        <video id="camPreview" autoplay playsinline muted style="display:none;"></video>
+        <div id="stageImageWrap" style="display:none;">
+          <canvas id="stageCanvas"></canvas>
+          <div id="pinLayer"></div>
+        </div>
+        <div id="pinEditor" style="display:none; margin-top:10px;">
+          <div class="note" style="margin-bottom:6px;">Label this spot:</div>
+          <div class="qOpts" id="pinChips"></div>
+          <div style="display:flex; gap:8px; margin-top:6px;">
+            <input type="text" class="textInput" id="pinLabelInput" placeholder="Custom label…">
+            <button class="btn small primary" id="placePinBtn">Place</button>
+            <button class="btn small ghost" id="cancelPinBtn">Cancel</button>
+          </div>
+        </div>
+        <div id="pinList" style="margin-top:10px;"></div>
+        <div style="display:flex; gap:8px; margin-top:10px;">
+          <button class="btn" id="startCamBtn">Start camera</button>
+          <button class="btn primary" id="capturePhotoBtn" style="display:none;">Capture photo</button>
+          <button class="btn ghost" id="retakePhotoBtn" style="display:none;">Retake</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>Distances</h3>
+        <div class="note">How far is it from one spot to another? Type it in if you know it, or guesstimate by walking it off.</div>
+        <div class="note" id="distUnitNote" style="margin-top:4px;"></div>
+        <div id="distList" style="margin-top:10px;"></div>
+        <button class="btn full" id="addDistanceBtn" style="margin-top:10px;">Add a distance</button>
+        <div id="addDistanceForm" style="display:none; margin-top:12px; padding-top:12px; border-top:1px solid var(--border);">
+          <div class="note" style="margin-bottom:8px;">Type a spot from your stage photo pins, or anything else — e.g. "Mix position," "Left speaker."</div>
+          <input type="text" class="textInput" id="distFrom" placeholder="From" list="pinDatalist" style="margin-bottom:8px;">
+          <input type="text" class="textInput" id="distTo" placeholder="To" list="pinDatalist">
+          <datalist id="pinDatalist"></datalist>
+          <div style="display:flex; gap:8px; margin-top:10px;">
+            <button class="btn small" id="distKnowBtn">I know it</button>
+            <button class="btn small primary" id="distWalkBtn">Walk it off</button>
+            <button class="btn small ghost" id="distCancelBtn">Cancel</button>
+          </div>
+          <div id="distKnowInputs" style="display:none; margin-top:8px;">
+            <div style="display:flex; gap:8px;">
+              <input type="number" class="textInput" id="distValue" placeholder="e.g. 6.5" step="0.1" style="flex:1;">
+              <select id="distUnit" class="textInput" style="flex:0 0 90px;"><option value="m">meters</option><option value="ft">feet</option></select>
+              <button class="btn small primary" id="distSaveKnown">Save</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- MIX CHECK TAB -->
+    <section class="tab" id="tab-mixcheck">
+      <div class="panel">
+        <h3>Your EQ</h3>
+        <div class="note">Tell the app what you're actually working with, and recommendations below will point at real controls instead of just a frequency range.</div>
+        <select class="textInput" id="eqTypeSelect" style="margin-top:10px;">
+          <option value="none">Not sure / skip this</option>
+          <option value="parametric">Parametric (sweepable frequency + Q)</option>
+          <option value="graphic">Graphic EQ (fixed bands)</option>
+          <option value="tone3">3-band tone stack (Low / Mid / High)</option>
+          <option value="tone2">2-band tone stack (Bass / Treble)</option>
+        </select>
+        <div id="eqGraphicRow" style="display:none; margin-top:8px;">
+          <input type="text" class="textInput" id="eqGraphicBands" placeholder="Band centers, e.g. 63,125,250,500,1k,2k,4k,8k,16k">
+        </div>
+        <div id="eqMidSweepRow" style="display:none; margin-top:8px;">
+          <button class="btn small" id="eqMidSweepToggle">Mid is sweepable: No</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>Full mix capture</h3>
+        <div class="note" style="margin-bottom:10px;">With everyone playing (or the recorded mix playing), capture a few seconds of the full mix to check it against your captured instruments and the selected style target.</div>
+        <button class="btn primary full" id="captureMixBtn">Capture full mix (5s)</button>
+        <div id="mixCompareWrap" style="display:none;">
+          <div class="miniCompare" id="mixCompareChart"></div>
+        </div>
+      </div>
+      <h3 style="font-size:13px; color:var(--text-dim); font-weight:500; margin:18px 0 10px; letter-spacing:.02em;">RECOMMENDATIONS</h3>
+      <div id="recList"><div class="recEmpty">Capture at least two instruments and a full mix to get recommendations.</div></div>
+    </section>
+
+    <!-- STYLE TAB -->
+    <section class="tab" id="tab-style">
+      <div class="panel">
+        <h3>Reference track target</h3>
+        <div class="note">Load a well-mixed song via the "Recorded mix" source on the Analyzer tab and let it play, then capture its overall tonal shape here to use as your target instead of the presets below — a real measured curve rather than an estimate.</div>
+        <input type="text" class="textInput" id="refNameInput" placeholder="Name it — e.g. song title" style="margin-top:10px;">
+        <button class="btn primary full" id="captureRefBtn" style="margin-top:8px;">Capture from what's playing (8s)</button>
+      </div>
+      <div class="note" style="margin-bottom:14px;">These are target tonal-balance archetypes, not verified recreations of a specific engineer's actual settings — nobody publishes their real EQ curves. Pick whichever shape best matches the sound you're going for; it only changes what the mix check compares your band against.</div>
+      <div id="styleList"></div>
+    </section>
+
+    <!-- LOG TAB -->
+    <section class="tab" id="tab-log">
+      <div class="panel">
+        <h3>Saved setups</h3>
+        <div class="note">Snapshot your whole working state — instruments, venue, style, reference targets — under a name, so you can reload it later or compare a fresh live capture against it.</div>
+        <div style="display:flex; gap:8px; margin-top:10px;">
+          <input type="text" class="textInput" id="setupNameInput" placeholder="Name it — e.g. Sunday AM">
+          <button class="btn primary small" id="saveSetupBtn">Save</button>
+        </div>
+        <div id="setupsList" style="margin-top:10px;"></div>
+        <div id="compareResult" style="display:none;"></div>
+        <button class="btn full" id="importSetupBtn" style="margin-top:10px;">Import a setup file</button>
+        <input type="file" id="setupFileInput" accept="application/json" style="display:none">
+      </div>
+
+      <h3 style="font-size:13px; color:var(--text-dim); font-weight:500; margin:0 0 10px;">SESSION LOG</h3>
+      <div id="logList"><div class="recEmpty">Nothing analyzed yet this session.</div></div>
+      <button class="btn danger full" id="resetBtn" style="margin-top:10px;">Reset saved band profile</button>
+    </section>
+  </main>
+
+  <nav class="tabbar">
+    <button class="tabbtn active" data-tab="analyzer"><svg viewBox="0 0 24 24"><path d="M3 18v-4M8 18v-9M13 18v-6M18 18V6M21 18h-1"/></svg>Analyzer</button>
+    <button class="tabbtn" data-tab="capture"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/></svg>Capture</button>
+    <button class="tabbtn" data-tab="venue"><svg viewBox="0 0 24 24"><path d="M12 21s7-6.5 7-12a7 7 0 10-14 0c0 5.5 7 12 7 12z"/><circle cx="12" cy="9" r="2.5"/></svg>Venue</button>
+    <button class="tabbtn" data-tab="mixcheck"><svg viewBox="0 0 24 24"><path d="M4 4l16 16M20 4L4 20"/></svg>Mix check</button>
+    <button class="tabbtn" data-tab="style"><svg viewBox="0 0 24 24"><path d="M12 3l2.6 6.2L21 10l-5 4.4L17.4 21 12 17.6 6.6 21 8 14.4 3 10l6.4-.8z"/></svg>Style</button>
+    <button class="tabbtn" data-tab="log"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>Log</button>
+  </nav>
+
+  <div class="guideOverlay" id="guideOverlay">
+    <div class="gi" id="guideStep">STEP 1 OF 8</div>
+    <div class="gname" id="guideName">Kick</div>
+    <div class="gsub" id="guideSub">Play this instrument by itself, then tap Capture</div>
+    <div class="gcount" id="guideCount"></div>
+    <div class="gmeter" id="guideMeterWrap" style="display:none;"><div class="gmeter-fill" id="guideMeterFill"></div></div>
+    <div class="gnarrative" id="guideNarrative" style="display:none;"></div>
+    <div class="gbtns" id="guideBtnsIdle">
+      <button class="btn ghost" id="guideSkipBtn">Skip</button>
+      <button class="btn primary" id="guideCaptureBtn">Capture</button>
+    </div>
+    <div class="gbtns" id="guideBtnsDone" style="display:none;">
+      <button class="btn ghost" id="guideRedoBtn">Redo</button>
+      <button class="btn primary" id="guideNextBtn">Next</button>
+    </div>
+    <button class="btn ghost" id="guideEndBtn" style="margin-top:14px; max-width:320px; width:100%;">End session</button>
+  </div>
+
+  <div class="guideOverlay" id="paceOverlay">
+    <div class="gi" id="paceTitle">FROM \u2192 TO</div>
+    <div class="gname">Walk it off</div>
+    <div class="gsub">Stand at the start point. Pick a method, then walk to the end point.</div>
+
+    <div class="gbtns" id="paceMethodPick">
+      <button class="btn" id="paceTapMethod">Count my steps</button>
+      <button class="btn" id="paceTimeMethod">Just time it</button>
+    </div>
+
+    <div id="paceTapUI" style="display:none; width:100%; max-width:320px;">
+      <div class="sliderRow">
+        <label>My stride</label>
+        <input type="range" id="strideLen" min="0.4" max="1.1" step="0.01" value="0.72">
+        <span class="val mono" id="strideLenVal">0.72 m</span>
+      </div>
+      <div class="gcount" id="stepCount">0</div>
+      <div class="note" style="text-align:center; margin-bottom:16px;">Tap once for every step you take walking there.</div>
+      <button class="btn primary full" id="stepTapBtn" style="padding:20px; font-size:17px;">TAP PER STEP</button>
+      <button class="btn full" id="stepDoneBtn" style="margin-top:10px;">I've arrived</button>
+    </div>
+
+    <div id="paceTimeUI" style="display:none; width:100%; max-width:320px;">
+      <div class="sliderRow">
+        <label>My walking pace</label>
+        <input type="range" id="walkSpeed" min="0.8" max="1.8" step="0.05" value="1.3">
+        <span class="val mono" id="walkSpeedVal">1.30 m/s</span>
+      </div>
+      <div class="gcount" id="timeCount">0:00</div>
+      <button class="btn primary full" id="timeStartBtn">Start walking</button>
+      <button class="btn full" id="timeDoneBtn" style="display:none; margin-top:10px;">I've arrived</button>
+    </div>
+
+    <div id="paceResult" class="note" style="text-align:center; margin:14px 0; display:none; max-width:320px;"></div>
+    <div class="gbtns" id="paceResultBtns" style="display:none;">
+      <button class="btn ghost" id="paceRedoBtn">Redo</button>
+      <button class="btn primary" id="paceSaveBtn">Save distance</button>
+    </div>
+
+    <button class="btn ghost" id="paceCancelBtn" style="margin-top:14px; max-width:320px; width:100%;">Cancel</button>
+  </div>
+
+</div>
+<script>
+'use strict';
+/* =====================================================================
+   SIDEMAN — mix analyzer engine
+   ===================================================================== */
+
+/* ---------- Frequency bands (standard mix-engineering ranges) ---------- */
+const BANDS = [
+  {key:'sub',      label:'Sub',      lo:20,   hi:60,   color:'var(--sub)'},
+  {key:'bass',     label:'Bass',     lo:60,   hi:250,  color:'var(--bass)'},
+  {key:'lowmid',   label:'Lo-Mid',   lo:250,  hi:500,  color:'var(--lowmid)'},
+  {key:'mid',      label:'Mid',      lo:500,  hi:2000, color:'var(--mid)'},
+  {key:'himid',    label:'Hi-Mid',   lo:2000, hi:4000, color:'var(--himid)'},
+  {key:'presence', label:'Presnc',   lo:4000, hi:6000, color:'var(--presence)'},
+  {key:'air',      label:'Air',      lo:6000, hi:16000,color:'var(--air)'}
+];
+const BAND_COLORS_HEX = {sub:'#C0392B',bass:'#E67E22',lowmid:'#DDB84D',mid:'#6FCF97',himid:'#4FD1C5',presence:'#4A90D9',air:'#9B6FD9'};
+const MIN_DB = -95, MAX_DB = -8;
+const _bh = 'U2lkZW1hbiDigJQgYnVpbHQgYnkgQmVuamkgKGJlbmpvT0JTKQ==';
+
+/* Higher-resolution capture layer — 24 log-spaced bands, ~40Hz–16kHz.
+   Captured alongside every 7-band capture (instruments, full mix,
+   reference targets, noise floor) so future EQ-matching / Q-suggestion
+   work has real data to draw on. Nothing that already exists (masking,
+   balance, harshness/thin/boxy, style curves) reads from this — the
+   7-band system above stays exactly as it was. */
+const FINE_COUNT = 24, FINE_LO = 40, FINE_HI = 16000;
+const FINE_BANDS = (function(){
+  const bands = []; const ratio = Math.pow(FINE_HI/FINE_LO, 1/FINE_COUNT); let lo = FINE_LO;
+  for(let i=0;i<FINE_COUNT;i++){ const hi = lo*ratio; bands.push({lo, hi, center: Math.sqrt(lo*hi)}); lo = hi; }
+  return bands;
+})();
+const FREQ_LO = 20, FREQ_HI = 16000;
+
+/* ---------- Default band roster (tuned to a worship/live-band setup) --- */
+const DEFAULT_INSTRUMENTS = [
+  'Kick','Snare','Hi-Hat','High Tom','Mid Tom','Floor Tom',
+  'Ride (Edge)','Ride (Bell)','Crash','Overheads',
+  'Bass','Electric Guitar','Acoustic Guitar','Keys','Lead Vocal','BGV'
+];
+const INSTR_COLORS = [
+  '#E8A33D','#E67E22','#DDB84D','#6FCF97','#4FD1C5','#4A90D9','#9B6FD9','#D46FB3',
+  '#C0392B','#8A6528','#5FA8D3','#7FD1A1','#E0955F','#B98FD9','#5FC7C2','#D9A45F'
+];
+
+/* ---------- Instrument tags — plain categories, used only to phrase the
+   tone checks in the instrument's own terms. Never used to invent an
+   "ideal" curve — every check below still compares an instrument only
+   against its own captured shape. ------------------------------------- */
+const INSTRUMENT_TAGS = [
+  {id:'drums', label:'Drums / Percussion'},
+  {id:'bass', label:'Bass'},
+  {id:'strings', label:'Strings / Plucked'},
+  {id:'keys', label:'Keys / Pads'},
+  {id:'vocals', label:'Vocals'},
+  {id:'other', label:'Other'}
+];
+function guessTag(name){
+  const n = (name||'').toLowerCase();
+  if(/kick|snare|tom|hat|ride|crash|cymbal|overhead|perc|conga|bongo|djembe|cajon|shaker|tambourine|timbale|\bdrum/.test(n)) return 'drums';
+  if(/\bbass\b/.test(n)) return 'bass';
+  if(/guitar|uke|ukulele|banjo|mandolin|violin|viola|cello|fiddle|harp|string/.test(n)) return 'strings';
+  if(/key|piano|synth|\bpad\b|organ|rhodes|wurlitzer/.test(n)) return 'keys';
+  if(/vocal|voice|\bvox\b|bgv|choir|singer/.test(n)) return 'vocals';
+  return 'other';
+}
+/* Suggests, never decides — only applied at creation time, only to tags
+   where lead/support is a meaningful question, and always overridable. */
+function guessRole(name, tag){
+  if(!['strings','keys','vocals'].includes(tag)) return null;
+  const n = (name||'').toLowerCase();
+  if(/\blead\b|\bsolo\b|\bmelody\b/.test(n)) return 'lead';
+  if(/\bbgv\b|\bbackground\b|\bharmony\b|\brhythm\b|\bsupport\b/.test(n)) return 'support';
+  return null;
+}
+const HARSH_HINTS = {
+  drums: 'Cymbals, hi-hats, and stick/rim attack commonly build up here.',
+  bass: 'Fret or string noise can live here, though bass rarely needs much energy this high.',
+  strings: 'A bright pick attack, fresh strings, or a presence boost on the amp often push guitars and plucked strings here.',
+  keys: 'Bright patches, digital pianos, and synth pads can build up here.',
+  vocals: 'Sibilance ("s," "sh," "t" sounds) and a bright mic or presence boost often live here.',
+  other: 'This is the range that usually reads as "harsh" or "fizzy" when it builds up.'
+};
+
+/* Source/mic-type tag — well-established, generic transducer behavior
+   (not a claim about any specific mic model), used only to caveat a
+   harshness reading, never to invent a target curve. */
+const SOURCE_TAGS = [
+  {id:'mic-dynamic', label:'Dynamic mic'},
+  {id:'mic-condenser', label:'Condenser mic'},
+  {id:'mic-ribbon', label:'Ribbon mic'},
+  {id:'di', label:'DI / Line-in'}
+];
+
+/* Gain, as a rough dial position rather than a dB number — a raw dB value
+   is meaningless without knowing that specific preamp's range, but "how
+   far around the knob" is honestly interpretable regardless of gear. */
+const GAIN_POSITIONS = ['7','8','9','10','11','12','1','2','3','4','5'];
+function gainFraction(pos){
+  const idx = GAIN_POSITIONS.indexOf(pos);
+  return idx<0 ? null : idx/(GAIN_POSITIONS.length-1);
+}
+function gainBucket(pos){
+  const f = gainFraction(pos);
+  if(f==null) return null;
+  if(f<0.3) return 'low';
+  if(f<0.6) return 'moderate';
+  if(f<0.85) return 'high';
+  return 'near-max';
+}
+
+/* ---------- EQ hardware profile — turns a frequency range into whatever
+   real control the person says they have, instead of a bare Hz range they
+   have to translate themselves. Purely a wording layer; never changes what
+   gets flagged, only how the fix is described. ------------------------- */
+function fmtHz(f){ return f>=1000 ? (Math.round(f/100)/10)+'k' : Math.round(f)+''; }
+function parseGraphicBands(text){
+  return (text||'').split(',').map(s=>s.trim()).filter(Boolean).map(s=>{
+    const m = s.match(/^([\d.]+)\s*k$/i);
+    return m ? parseFloat(m[1])*1000 : parseFloat(s);
+  }).filter(n=>!isNaN(n) && n>0);
+}
+function eqActionHint(loHz, hiHz){
+  const eq = state.eqProfile;
+  if(!eq || eq.type==='none') return '';
+  const centerHz = Math.sqrt(loHz*hiHz);
+  if(eq.type==='parametric'){
+    return ` Set a parametric band around ${fmtHz(centerHz)} Hz.`;
+  }
+  if(eq.type==='graphic'){
+    if(!eq.graphicBands || !eq.graphicBands.length) return '';
+    let best=null, bd=Infinity;
+    eq.graphicBands.forEach(f=>{ const d=Math.abs(Math.log(f/centerHz)); if(d<bd){bd=d; best=f;} });
+    if(best==null) return '';
+    const octavesOff = Math.abs(Math.log2(best/centerHz));
+    if(octavesOff>0.7) return ` Your nearest graphic band (${fmtHz(best)} Hz) is a bit off-target for this \u2014 it may only partly reach it, so mic placement or the source itself may matter more here.`;
+    return ` Try your ${fmtHz(best)} Hz graphic band.`;
+  }
+  if(eq.type==='tone2' || eq.type==='tone3'){
+    if(centerHz<300) return ' Try pulling back your Bass/Low control.';
+    if(centerHz<3000){
+      if(eq.type==='tone3') return eq.sweepableMid ? ` Try sweeping your Mid control toward ${fmtHz(centerHz)} Hz and pulling it back.` : ' Try pulling back your Mid control.';
+      return ' A 2-band stack can\u2019t reach the middle precisely \u2014 try pulling back whichever of Bass/Treble leans closer to this range, or lean on mic placement instead.';
+    }
+    return ' Try pulling back your Treble/High control.';
+  }
+  return '';
+}
+
+const MIC_HINTS = {
+  'mic-dynamic': ' Dynamic mics commonly add their own presence bump and roll off above roughly 15\u2009kHz, so part of this could be the mic\u2019s own character rather than the instrument.',
+  'mic-condenser': ' Condensers run more full-range and sensitive, including more of the room, so part of this could be room reflections bleeding in rather than the instrument alone.',
+  'mic-ribbon': ' Ribbons are naturally rolled off on top, so a harsh reading through one is more likely coming from the instrument itself.',
+  'di': ' This was captured direct with no mic in the path, so a harsh reading here is very likely the instrument or pickup itself, not the room or a mic.'
+};
+
+
+/* ---------- Style presets: target tonal-balance archetypes ------------- */
+/* Values are relative dB offsets per band around a 'mid' = 0 reference.
+   These describe a general tonal SHAPE, not any individual's real settings. */
+const STYLE_PRESETS = [
+  { id:'worship', name:'Live Worship — Natural & Open',
+    desc:'A gentle, uncoloured shape built for a full band plus vocals in a room: controlled low end so it doesn\u2019t fight the room, present but not harsh vocals, open air on top for acoustic instruments and cymbals.',
+    curve:{sub:-4, bass:0, lowmid:-2, mid:0, himid:1, presence:1.5, air:1} },
+  { id:'pop', name:'Modern Pop / Radio — Bright & Punchy',
+    desc:'Tight, scooped low-mids to avoid mud, a forward vocal presence lift, and extended top end for clarity on phone speakers and earbuds.',
+    curve:{sub:-2, bass:0.5, lowmid:-4, mid:-1, himid:1.5, presence:3, air:2} },
+  { id:'rock', name:'Classic Rock — Warm & Wide',
+    desc:'Fuller low-mids for guitar body and drum weight, a present but not brittle top end, less extreme scooping than a pop curve.',
+    curve:{sub:0, bass:1, lowmid:0, mid:0, himid:0.5, presence:1, air:-0.5} },
+  { id:'edm', name:'EDM / Club — Sub-Heavy',
+    desc:'Strong sub and bass for a PA system, scooped mids to keep the low end from getting muddy, bright highs that translate on a club rig.',
+    curve:{sub:3, bass:2, lowmid:-3, mid:-2, himid:0, presence:1.5, air:2.5} },
+  { id:'vintage', name:'Vintage Warm — Analog Glue',
+    desc:'Rolled-off extreme highs, a gentle low-mid lift for warmth, a softened presence range — the sound of tape and transformers rather than a bright, modern top end.',
+    curve:{sub:0.5, bass:1, lowmid:1.5, mid:0.5, himid:-0.5, presence:-1, air:-3} }
+];
+
+/* Resolves the currently selected target — either a built-in archetype or a
+   user-captured reference-track curve — so the rest of the app doesn't need
+   to know which kind it is. */
+function getActiveTarget(){
+  const built = STYLE_PRESETS.find(s=>s.id===state.styleId);
+  if(built) return built;
+  const ref = state.referenceTargets.find(r=>r.id===state.styleId);
+  if(ref) return { id:ref.id, name:ref.name, desc:'Captured from a reference track on '+new Date(ref.capturedAt).toLocaleDateString(), curve:ref.curve };
+  return STYLE_PRESETS[0];
+}
+
+/* ---------- State -------------------------------------------------------*/
+const state = {
+  source: 'mic',              // 'mic' | 'file'
+  audioCtx: null, analyser: null, micNode: null, fileSourceNode: null, mediaStream: null,
+  freqData: null, timeData: null, sampleRate: 48000,
+  running: false,
+  tiltBass: 3, tiltAir: 2,
+  instruments: [],            // {id, name, color, levels:{band:dB}|null, capturedAt}
+  fullMix: null,              // {levels, capturedAt}
+  styleId: 'worship',
+  referenceTargets: [],       // [{id, name, curve, capturedAt}] — user-captured target curves from reference tracks
+  noiseFloor: null,           // {levels, fine, capturedAt} — a captured baseline of "nobody playing"
+  setups: [],                 // [{id, name, savedAt, data:{...}}] — named saved setups
+  dismissed: [],               // keys of recommendations the user dismissed — auto-invalidated on recapture
+  eqProfile: { type:'none', graphicBands:[], sweepableMid:false },
+  previewEq: { enabled:false, freq:1000, gain:0, q:1 },
+  previewComp: { enabled:false, threshold:-24, ratio:4, attack:0.01, release:0.25 },
+  previewFilter: null, previewCompNode: null,
+  currentFileName: null,
+  log: [],
+  guide: { active:false, idx:0, order:[], capturing:false },
+  venue: { roomType:null, surfaces:null, ceiling:null, occupancy:null, unit:'m',
+    dims:{l:null,w:null,h:null}, pins:[], stagePhoto:null, distances:[] }
+};
+const PIN_CHIPS = ['FOH / Mix','Main L','Main R','Subwoofer','Monitor 1','Monitor 2','Delay Speaker','Stage Front'];
+
+/* ---------- DOM refs ------------------------------------------------- */
+const $ = (id) => document.getElementById(id);
+const canvas = $('spectrum'), ctx = canvas.getContext('2d');
+const statusLine = $('statusLine');
+
+/* ---------- Utility ---------------------------------------------------*/
+function freqToX(f, w){
+  const r = Math.log(f/FREQ_LO)/Math.log(FREQ_HI/FREQ_LO);
+  return Math.max(0, Math.min(w, r*w));
+}
+function dbToY(db, h){
+  const r = (db-MIN_DB)/(MAX_DB-MIN_DB);
+  return h - Math.max(0, Math.min(1,r))*h;
+}
+function clampDb(db){ return Math.max(MIN_DB, Math.min(0, db)); }
+function fmtDb(db){ return (db>0?'+':'') + db.toFixed(1) + ' dB'; }
+function uid(){ return Math.random().toString(36).slice(2,9); }
+
+/* Average a set of dB bin values by converting to linear power first
+   (correct way to average energy across bins / across time frames). */
+function avgDbPower(dbArray){
+  if(!dbArray.length) return MIN_DB;
+  let sum=0;
+  for(const db of dbArray){ sum += Math.pow(10, db/10); }
+  const meanPow = sum/dbArray.length;
+  return 10*Math.log10(Math.max(meanPow, 1e-12));
+}
+
+/* Combine a captured instrument's already-band-averaged dB values (e.g.
+   presence + air) into one region reading, using the same energy-correct
+   averaging as avgDbPower — never average dB numbers directly. */
+function combineBandsDb(levels, keys){
+  let sum=0;
+  keys.forEach(k=>{ sum += Math.pow(10, levels[k]/10); });
+  return 10*Math.log10(sum/keys.length);
+}
+
+/* ---------- Audio graph setup ------------------------------------------*
+   Two independent input nodes feed the shared analyser: a mic node
+   (recreated per getUserMedia call) and a file node (created ONCE ever —
+   browsers throw if createMediaElementSource is called twice on the same
+   <audio> element). The analyser is only ever wired to the speakers while
+   a file is playing, and explicitly unwired before mic use, so the mic
+   can never feed back into the speakers.                                  */
+function ensureCtx(){
+  if(!state.audioCtx){
+    state.audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+    state.analyser = state.audioCtx.createAnalyser();
+    state.analyser.fftSize = 4096;
+    state.analyser.smoothingTimeConstant = 0.55;
+    state.freqData = new Float32Array(state.analyser.frequencyBinCount);
+    state.timeData = new Uint8Array(state.analyser.fftSize);
+    state.sampleRate = state.audioCtx.sampleRate;
+  }
+  if(state.audioCtx.state === 'suspended') state.audioCtx.resume();
+}
+
+function connectAnalyserToSpeakers(connect){
+  if(!state.analyser) return;
+  try{
+    if(connect) state.analyser.connect(state.audioCtx.destination);
+    else state.analyser.disconnect();
+  }catch(e){ /* already in desired state */ }
+}
+
+function stopMic(){
+  if(state.micNode){ try{state.micNode.disconnect();}catch(e){} state.micNode=null; }
+  if(state.mediaStream){ state.mediaStream.getTracks().forEach(t=>t.stop()); state.mediaStream=null; }
+}
+
+function stopSource(){
+  stopMic();
+  connectAnalyserToSpeakers(false);
+  const p = $('playerEl'); if(p && !p.paused) p.pause();
+  state.running = false;
+}
+
+async function startMic(){
+  stopMic();
+  statusLine.textContent = 'Requesting mic…';
+  try{
+    const selectedId = $('micDeviceSelect') && $('micDeviceSelect').value;
+    const audioConstraints = { echoCancellation:false, noiseSuppression:false, autoGainControl:false, channelCount:1 };
+    if(selectedId) audioConstraints.deviceId = { exact: selectedId };
+    const stream = await navigator.mediaDevices.getUserMedia({audio:audioConstraints});
+    ensureCtx();
+    connectAnalyserToSpeakers(false); // never route mic to speakers — avoids feedback
+    const p = $('playerEl'); if(p && !p.paused) p.pause();
+    const node = state.audioCtx.createMediaStreamSource(stream);
+    node.connect(state.analyser);
+    state.micNode = node;
+    state.mediaStream = stream;
+    state.running = true;
+    statusLine.textContent = 'Listening — mic';
+    $('spectrum-empty').style.display = 'none';
+    refreshMicDeviceList();
+  }catch(err){
+    statusLine.textContent = 'Mic access denied';
+    $('spectrum-empty').textContent = 'Microphone access was blocked. Check your browser\u2019s site permissions and try Start again.';
+    $('spectrum-empty').style.display = 'flex';
+    throw err;
+  }
+}
+
+/* Populate the input-device picker. Browsers only return real device labels
+   (e.g. "VB-Cable", "BlackHole 2ch", "XR18 USB Audio") after mic permission
+   has been granted at least once in this session — before that they're
+   just numbered "Microphone 1/2/3". */
+async function refreshMicDeviceList(){
+  try{
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const inputs = devices.filter(d=>d.kind==='audioinput');
+    const sel = $('micDeviceSelect');
+    const current = sel.value;
+    sel.innerHTML = '<option value="">Default microphone</option>' +
+      inputs.map((d,i)=>`<option value="${d.deviceId}">${escapeHtml(d.label||('Input '+(i+1)))}</option>`).join('');
+    if(current && inputs.some(d=>d.deviceId===current)) sel.value = current;
+  }catch(e){ /* enumerateDevices unsupported or blocked — default mic still works */ }
+}
+
+/* System / tab audio — e.g. monitoring what OBS is outputting, or any app's
+   sound. Uses screen/tab sharing purely to get at the audio track; the video
+   track is stopped immediately and never displayed or recorded. Chrome/Edge
+   on desktop only — Firefox and Safari implement the API but drop the audio,
+   and the person has to explicitly tick "Share audio" in the picker or no
+   audio track comes through at all. */
+async function startSystemAudio(){
+  stopMic();
+  try{
+    const stream = await navigator.mediaDevices.getDisplayMedia({ video:true, audio:{ systemAudio:'include' } });
+    stream.getVideoTracks().forEach(t=>t.stop());
+    const audioTracks = stream.getAudioTracks();
+    if(!audioTracks.length){
+      stream.getTracks().forEach(t=>t.stop());
+      statusLine.textContent = 'No audio shared';
+      $('spectrum-empty').textContent = 'No audio track came through — the \u201cShare audio\u201d (or \u201cShare tab audio\u201d) box in that dialog was probably left unchecked. Try Start again and make sure it\u2019s ticked.';
+      $('spectrum-empty').style.display = 'flex';
+      return;
+    }
+    ensureCtx();
+    connectAnalyserToSpeakers(false); // it's already playing through your speakers — don't double it up
+    const node = state.audioCtx.createMediaStreamSource(stream);
+    node.connect(state.analyser);
+    state.micNode = node;
+    state.mediaStream = stream;
+    audioTracks[0].addEventListener('ended', ()=>{
+      if(state.source==='sys'){
+        stopSource(); statusLine.textContent='Idle';
+        $('spectrum-empty').textContent='Sharing stopped.';
+        $('spectrum-empty').style.display='flex';
+      }
+    });
+    state.running = true;
+    statusLine.textContent = 'Listening — system audio';
+    $('spectrum-empty').style.display = 'none';
+  }catch(err){
+    statusLine.textContent = 'System audio unavailable';
+    $('spectrum-empty').textContent = 'Couldn\u2019t capture system audio — this needs Chrome or Edge on a computer (not supported in Firefox, Safari, or on mobile), and you may have cancelled the share dialog. A virtual audio cable (VB-Cable on Windows, BlackHole on Mac) routed into the Microphone source above is a more reliable way to capture an app\u2019s output.';
+    $('spectrum-empty').style.display = 'flex';
+  }
+}
+
+/* ---------- Audition preview: real EQ + compressor, Recorded Mix only ---
+   Bolted onto the file-playback path only — this is the one source where
+   we're actively driving what comes out of the speakers, so "does this
+   fix it" can genuinely be heard before touching a real EQ. Mic and
+   system audio are untouched (mic is never routed to speakers at all,
+   and system audio is already playing independently of our graph, so
+   processing it here wouldn't be audible anyway). Neutral by default —
+   an unchecked toggle means zero effect, not just "small." */
+function ensurePreviewNodes(){
+  if(!state.previewFilter){
+    state.previewFilter = state.audioCtx.createBiquadFilter();
+    state.previewFilter.type = 'peaking';
+  }
+  if(!state.previewCompNode){
+    state.previewCompNode = state.audioCtx.createDynamicsCompressor();
+  }
+  updatePreviewFilter();
+  updatePreviewComp();
+}
+function updatePreviewFilter(){
+  if(!state.previewFilter) return;
+  state.previewFilter.frequency.value = state.previewEq.freq;
+  state.previewFilter.Q.value = state.previewEq.q;
+  state.previewFilter.gain.value = state.previewEq.enabled ? state.previewEq.gain : 0;
+}
+function updatePreviewComp(){
+  if(!state.previewCompNode) return;
+  if(state.previewComp.enabled){
+    state.previewCompNode.threshold.value = state.previewComp.threshold;
+    state.previewCompNode.ratio.value = state.previewComp.ratio;
+    state.previewCompNode.attack.value = state.previewComp.attack;
+    state.previewCompNode.release.value = state.previewComp.release;
+  } else {
+    state.previewCompNode.ratio.value = 1;   // 1:1 — no compression, regardless of threshold
+    state.previewCompNode.threshold.value = 0;
+  }
+}
+
+function getFileSourceNode(){
+  if(!state.fileSourceNode){
+    state.fileSourceNode = state.audioCtx.createMediaElementSource($('playerEl'));
+  }
+  return state.fileSourceNode;
+}
+
+function startFilePlayback(){
+  ensureCtx();
+  stopMic();
+  ensurePreviewNodes();
+  const src = getFileSourceNode();
+  src.connect(state.previewFilter);                    // safe to call repeatedly — no-op if already connected
+  state.previewFilter.connect(state.previewCompNode);
+  state.previewCompNode.connect(state.analyser);
+  connectAnalyserToSpeakers(true);
+  state.running = true;
+  statusLine.textContent = 'Listening — recorded mix';
+  $('spectrum-empty').style.display = 'none';
+}
+
+/* ---------- Band level computation -------------------------------------*/
+function binFreq(i){ return i * state.sampleRate / state.analyser.fftSize; }
+
+function currentBandLevels(applyTilt){
+  state.analyser.getFloatFrequencyData(state.freqData);
+  const out = {};
+  for(const b of BANDS){
+    const vals=[];
+    for(let i=0;i<state.freqData.length;i++){
+      const f = binFreq(i);
+      if(f>=b.lo && f<b.hi) vals.push(state.freqData[i]);
+    }
+    let db = avgDbPower(vals);
+    if(applyTilt){
+      if(b.key==='sub' || b.key==='bass') db += state.tiltBass * (b.key==='sub'?1:0.6);
+      if(b.key==='air' || b.key==='presence') db += state.tiltAir * (b.key==='air'?1:0.4);
+    }
+    out[b.key] = clampDb(db);
+  }
+  return out;
+}
+
+/* Fine-resolution counterpart to currentBandLevels — always raw (no tilt),
+   returns a flat array of 24 dB values matching FINE_BANDS order. */
+function currentFineBandLevels(){
+  state.analyser.getFloatFrequencyData(state.freqData);
+  return FINE_BANDS.map(fb=>{
+    const vals=[];
+    for(let i=0;i<state.freqData.length;i++){
+      const f = binFreq(i);
+      if(f>=fb.lo && f<fb.hi) vals.push(state.freqData[i]);
+    }
+    return clampDb(avgDbPower(vals));
+  });
+}
+
+function currentLevelDbfs(){
+  state.analyser.getByteTimeDomainData(state.timeData);
+  let sum=0;
+  for(let i=0;i<state.timeData.length;i++){ const v=(state.timeData[i]-128)/128; sum+=v*v; }
+  const rms = Math.sqrt(sum/state.timeData.length);
+  return rms>0 ? 20*Math.log10(rms) : -80;
+}
+
+/* ---------- Drawing loop ------------------------------------------------*/
+function resizeCanvas(){
+  const wrap = $('spectrum-wrap');
+  const dpr = window.devicePixelRatio||1;
+  canvas.width = wrap.clientWidth*dpr;
+  canvas.height = 220*dpr;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+window.addEventListener('resize', ()=>{ resizeCanvas(); if(state.venue.stagePhoto) renderPins(); });
+
+function drawFrame(){
+  requestAnimationFrame(drawFrame);
+  const w = canvas.width/(window.devicePixelRatio||1), h = canvas.height/(window.devicePixelRatio||1);
+  ctx.clearRect(0,0,w,h);
+  if(!state.running) return;
+
+  // band background zones
+  for(const b of BANDS){
+    const x0 = freqToX(b.lo,w), x1 = freqToX(Math.min(b.hi,FREQ_HI),w);
+    ctx.fillStyle = hexA(BAND_COLORS_HEX[b.key],0.07);
+    ctx.fillRect(x0,0,x1-x0,h);
+  }
+  // grid lines
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth=1; ctx.font='9px IBM Plex Mono, monospace';
+  ctx.fillStyle='rgba(255,255,255,0.28)';
+  [100,1000,10000].forEach(f=>{
+    const x=freqToX(f,w);
+    ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke();
+    ctx.fillText(f>=1000?(f/1000)+'k':f, x+3, h-4);
+  });
+
+  state.analyser.getFloatFrequencyData(state.freqData);
+  const grad = ctx.createLinearGradient(0,0,w,0);
+  grad.addColorStop(0.0, BAND_COLORS_HEX.sub);
+  grad.addColorStop(0.18, BAND_COLORS_HEX.bass);
+  grad.addColorStop(0.35, BAND_COLORS_HEX.lowmid);
+  grad.addColorStop(0.5, BAND_COLORS_HEX.mid);
+  grad.addColorStop(0.66, BAND_COLORS_HEX.himid);
+  grad.addColorStop(0.82, BAND_COLORS_HEX.presence);
+  grad.addColorStop(1.0, BAND_COLORS_HEX.air);
+
+  ctx.beginPath();
+  let started=false;
+  for(let i=0;i<state.freqData.length;i++){
+    const f = binFreq(i);
+    if(f<FREQ_LO) continue;
+    if(f>FREQ_HI) break;
+    let db = state.freqData[i];
+    if(state.source==='mic'){
+      if(f<250) db += state.tiltBass*0.8;
+      if(f>6000) db += state.tiltAir*0.8;
+    }
+    const x = freqToX(f,w), y = dbToY(db,h);
+    if(!started){ ctx.moveTo(x,y); started=true; } else ctx.lineTo(x,y);
+  }
+  ctx.strokeStyle = grad; ctx.lineWidth=1.6; ctx.stroke();
+  ctx.lineTo(w,h); ctx.lineTo(0,h); ctx.closePath();
+  ctx.globalAlpha=0.12; ctx.fillStyle=grad; ctx.fill(); ctx.globalAlpha=1;
+
+  // level meter + band grid update (throttled naturally by rAF)
+  const dbfs = currentLevelDbfs();
+  const pct = Math.max(0, Math.min(100, (dbfs+60)/60*100));
+  $('levelFill').style.width = pct+'%';
+  $('levelLabel').textContent = dbfs<=-59?'—':dbfs.toFixed(1)+' dB';
+
+  updateBandGridDisplay();
+}
+
+function hexA(hex,a){
+  const c = hex.replace('#','');
+  const r=parseInt(c.substr(0,2),16), g=parseInt(c.substr(2,2),16), b=parseInt(c.substr(4,2),16);
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+let lastBandUpdate=0;
+function updateBandGridDisplay(){
+  const now = performance.now();
+  if(now-lastBandUpdate < 180) return;
+  lastBandUpdate = now;
+  const levels = currentBandLevels(state.source==='mic'); // display only — tilt never touches captured/analyzed data, and only makes sense for a phone mic anyway
+  BANDS.forEach(b=>{
+    const el = $('bv-'+b.key);
+    if(el) el.textContent = levels[b.key].toFixed(0);
+  });
+}
+
+/* ---------- Band grid (static shells) ----------------------------------*/
+function buildBandGrid(){
+  $('bandGrid').innerHTML = BANDS.map(b=>`
+    <div class="bandCell">
+      <div class="swatch" style="background:${b.color}"></div>
+      <div class="bl">${b.label}</div>
+      <div class="bv mono" id="bv-${b.key}">—</div>
+    </div>`).join('');
+}
+
+/* ---------- Instrument roster ------------------------------------------*/
+function buildDefaultInstruments(){
+  return DEFAULT_INSTRUMENTS.map((name,i)=>{
+    const tag = guessTag(name);
+    return { id:uid(), name, color:INSTR_COLORS[i%INSTR_COLORS.length], levels:null, capturedAt:null, tag, role:guessRole(name,tag) };
+  });
+}
+
+function renderInstrList(){
+  const list = $('instrList');
+  if(!state.instruments.length){
+    list.innerHTML = '<div class="recEmpty">No instruments yet — add your band\u2019s channels below.</div>';
+    return;
+  }
+  list.innerHTML = state.instruments.map(ins=>`
+    <div class="instrItem" data-id="${ins.id}">
+      <div class="dot" style="background:${ins.levels?ins.color:'#3A3F45'}"></div>
+      <div class="meta">
+        <input class="instr-name-edit" value="${escapeHtml(ins.name)}" data-id="${ins.id}">
+        <div class="instr-sub">${ins.levels? 'Captured \u00b7 peak: '+topBandLabel(ins.levels)+headroomLabel(ins.levels) : 'Not captured yet'}</div>
+        <select class="textInput tagSelect" data-id="${ins.id}" style="margin-top:5px; font-size:11px; padding:4px 6px; width:auto;">
+          ${INSTRUMENT_TAGS.map(t=>`<option value="${t.id}" ${(ins.tag||'other')===t.id?'selected':''}>${t.label}</option>`).join('')}
+        </select>
+        <div style="display:flex; gap:5px; margin-top:5px; align-items:center; flex-wrap:wrap;">
+          ${ins.tag!=='drums' ? `
+          <button class="btn small ${ins.role==='lead'?'active':''}" data-role="lead" data-id="${ins.id}" style="padding:4px 8px; font-size:10px;">Lead</button>
+          <button class="btn small ${ins.role==='support'?'active':''}" data-role="support" data-id="${ins.id}" style="padding:4px 8px; font-size:10px;">Support</button>
+          ` : ''}
+          <select class="textInput sourceSelect" data-id="${ins.id}" style="font-size:10px; padding:4px 6px; width:auto; flex:1; min-width:110px;">
+            <option value="">Mic/source \u2014 ?</option>
+            ${SOURCE_TAGS.map(t=>`<option value="${t.id}" ${ins.source===t.id?'selected':''}>${t.label}</option>`).join('')}
+          </select>
+          <select class="textInput gainSelect" data-id="${ins.id}" style="font-size:10px; padding:4px 6px; width:auto;">
+            <option value="">Gain \u2014 ?</option>
+            ${GAIN_POSITIONS.map(p=>`<option value="${p}" ${ins.gainPos===p?'selected':''}>${p} o'clock</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <canvas class="mini" width="104" height="48" data-id="${ins.id}"></canvas>
+      <div class="actions">
+        <button class="btn small" data-act="capture" data-id="${ins.id}">${ins.levels?'Recap':'Cap'}</button>
+        ${ins.levels?`<button class="btn small ghost" data-act="export" data-id="${ins.id}">Exp</button>`:''}
+        <button class="btn small ghost" data-act="remove" data-id="${ins.id}">✕</button>
+      </div>
+    </div>`).join('');
+  state.instruments.forEach(ins=>{ if(ins.levels) drawMini(ins); });
+}
+
+function topBandLabel(levels){
+  let best=null,bv=-999;
+  BANDS.forEach(b=>{ if(levels[b.key]>bv){bv=levels[b.key]; best=b;} });
+  return best ? best.label+' ('+best.lo+'\u2013'+best.hi+'Hz)' : '—';
+}
+function updateNoiseFloorNote(){
+  const note = $('noiseFloorNote');
+  if(!note) return;
+  note.textContent = state.noiseFloor
+    ? `Captured ${new Date(state.noiseFloor.capturedAt).toLocaleTimeString()}. Instrument captures show their headroom above it.`
+    : 'Capture a few seconds of silence \u2014 nobody playing, room as it\u2019ll be during the show \u2014 so captured instruments can show how much headroom they actually have above it.';
+}
+function headroomLabel(levels){
+  if(!state.noiseFloor) return '';
+  const margin = instrumentHeadroom(levels);
+  return ' \u00b7 '+margin.toFixed(0)+'dB above noise floor';
+}
+/* How far an instrument's own strongest band sits above the measured
+   noise floor in that same band. */
+function instrumentHeadroom(levels){
+  let best=null,bv=-999;
+  BANDS.forEach(b=>{ if(levels[b.key]>bv){bv=levels[b.key]; best=b;} });
+  return levels[best.key] - state.noiseFloor.levels[best.key];
+}
+
+function drawMini(ins){
+  const c = document.querySelector(`canvas.mini[data-id="${ins.id}"]`);
+  if(!c) return;
+  const cx = c.getContext('2d'), w=c.width,h=c.height;
+  cx.clearRect(0,0,w,h);
+  const bw = w/BANDS.length;
+  const vals = BANDS.map(b=>ins.levels[b.key]);
+  const max = Math.max(...vals), min = Math.min(...vals);
+  BANDS.forEach((b,i)=>{
+    const v = ins.levels[b.key];
+    const norm = max>min ? (v-min)/(max-min) : 0.5;
+    const bh = 4+norm*(h-6);
+    cx.fillStyle = BAND_COLORS_HEX[b.key];
+    cx.fillRect(i*bw+1, h-bh, bw-2, bh);
+  });
+}
+
+function escapeHtml(s){ return s.replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* ---------- Capture (single instrument, N seconds) ---------------------*/
+function captureFor(seconds, onProgress){
+  return new Promise((resolve)=>{
+    if(!state.running || !state.analyser){ resolve(null); return; }
+    const frames=[]; const fineFrames=[]; const start=performance.now(); const durMs=seconds*1000;
+    function tick(){
+      frames.push(currentBandLevels());
+      fineFrames.push(currentFineBandLevels());
+      const el = performance.now()-start;
+      if(onProgress) onProgress(Math.min(1, el/durMs));
+      if(el<durMs) requestAnimationFrame(tick);
+      else {
+        const merged={};
+        BANDS.forEach(b=>{ merged[b.key] = avgDbPower(frames.map(f=>f[b.key])); });
+        const fineMerged = FINE_BANDS.map((fb,i)=>avgDbPower(fineFrames.map(f=>f[i])));
+        resolve({levels: merged, fine: fineMerged});
+      }
+    }
+    tick();
+  });
+}
+
+/* ---------- Guided session ----------------------------------------------*/
+function openGuide(){
+  if(!state.running){ alert('Start listening (mic or recorded mix) first.'); return; }
+  state.guide.active=true;
+  state.guide.order = state.instruments.map(i=>i.id);
+  state.guide.idx = 0;
+  $('guideOverlay').classList.add('show');
+  showGuideStep();
+}
+function closeGuide(){
+  state.guide.active=false;
+  $('guideOverlay').classList.remove('show');
+  renderInstrList(); saveProfile();
+}
+function showGuideStep(){
+  const g=state.guide;
+  if(g.idx>=g.order.length){ closeGuide(); return; }
+  const ins = state.instruments.find(i=>i.id===g.order[g.idx]);
+  $('guideStep').textContent = `STEP ${g.idx+1} OF ${g.order.length}`;
+  $('guideName').textContent = ins.name;
+  $('guideSub').textContent = `Play "${ins.name}" by itself — everything else muted or silent — then tap Capture.`;
+  $('guideCount').textContent='';
+  $('guideMeterWrap').style.display='none';
+  $('guideBtnsIdle').style.display='flex';
+  $('guideBtnsDone').style.display='none';
+}
+async function runGuideCapture(){
+  const g=state.guide;
+  const ins = state.instruments.find(i=>i.id===g.order[g.idx]);
+  $('guideBtnsIdle').style.display='none';
+  $('guideNarrative').style.display='none';
+  for(let n=3;n>0;n--){ $('guideCount').textContent=n; await wait(600); }
+  $('guideCount').textContent='';
+  $('guideMeterWrap').style.display='block';
+  const cap = await captureFor(3.5, (p)=>{ $('guideMeterFill').style.width=(p*100)+'%'; });
+  if(cap){ ins.levels=cap.levels; ins.fine=cap.fine; ins.capturedAt=Date.now(); }
+  $('guideMeterWrap').style.display='none';
+  if(ins.levels){
+    $('guideNarrative').innerHTML = buildInstrumentNarrative(ins);
+    $('guideNarrative').style.display='block';
+    showNarrativeFor(ins); // also keep the Capture-tab panel in sync
+  }
+  $('guideBtnsDone').style.display='flex';
+}
+function wait(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+/* ---------- Full mix capture + recommendations ---------------------------*/
+async function captureFullMix(){
+  if(!state.running){ alert('Start listening (mic or recorded mix) first.'); return; }
+  const btn=$('captureMixBtn'); btn.disabled=true; btn.textContent='Listening… 5s';
+  const cap = await captureFor(5, (p)=>{ btn.textContent=`Listening… ${Math.ceil(5*(1-p))}s`; });
+  btn.disabled=false; btn.textContent='Capture full mix (5s)';
+  if(!cap) return;
+  state.fullMix = {levels:cap.levels, fine:cap.fine, capturedAt:Date.now()};
+  renderMixCompare();
+  const recs = computeRecommendations();
+  const visible = recs.filter(r=>!r.key || !state.dismissed.includes(r.key));
+  renderRecommendations(visible, recs.length);
+  pushLog(visible);
+  saveProfile();
+}
+
+function renderMixCompare(){
+  if(!state.fullMix) return;
+  $('mixCompareWrap').style.display='block';
+  const target = getActiveTarget().curve;
+  const mixShape = shapeRelativeToMid(state.fullMix.levels);
+  $('mixCompareChart').innerHTML = BANDS.map(b=>{
+    const mv = mixShape[b.key], tv = target[b.key];
+    const h1 = 8+Math.min(48,Math.abs(mv)*6);
+    return `<div class="col">
+      <div style="display:flex; align-items:flex-end; gap:2px; height:48px;">
+        <div class="bar" style="height:${h1}px; background:${BAND_COLORS_HEX[b.key]};" title="Mix ${mv.toFixed(1)}dB"></div>
+        <div class="bar" style="height:${8+Math.min(48,Math.abs(tv)*6)}px; background:${BAND_COLORS_HEX[b.key]}; opacity:.35;" title="Target ${tv.toFixed(1)}dB"></div>
+      </div>
+      <div class="cl">${b.label}</div>
+    </div>`;
+  }).join('');
+}
+
+function shapeRelativeToMid(levels){
+  const ref = levels.mid;
+  const out={};
+  BANDS.forEach(b=>{ out[b.key]=levels[b.key]-ref; });
+  return out;
+}
+/* For comparing one instrument's shape to another (e.g. a per-instrument
+   reference capture) — anchored to the instrument's own peak rather than
+   its mid band, since not every instrument has meaningful mid content. */
+function shapeRelativeToPeak(levels){
+  const peak = Math.max(...BANDS.map(b=>levels[b.key]));
+  const out={};
+  BANDS.forEach(b=>{ out[b.key]=levels[b.key]-peak; });
+  return out;
+}
+
+function computeRecommendations(){
+  const recs=[];
+  const captured = state.instruments.filter(i=>i.levels);
+
+  // 1) Masking / frequency conflicts between captured instruments
+  if(captured.length>=2){
+    BANDS.forEach(b=>{
+      const contenders = captured.filter(ins=>{
+        const own = ins.levels[b.key];
+        const ownMax = Math.max(...BANDS.map(bb=>ins.levels[bb.key]));
+        return (ownMax-own) <= 7; // within 7dB of that instrument's own peak band
+      });
+      if(contenders.length>=2){
+        const names = contenders.map(c=>c.name).join(' and ');
+        let body = `Both parts carry real energy in this range, which is where masking usually happens. Try high-passing or gently cutting one of them by 2\u20134 dB here, or separate them with panning so they're not both centred and stacked in the same band.`;
+        // Lead/Support tags, when both set and different, turn this into a concrete call
+        if(contenders.length===2){
+          const lead = contenders.find(c=>c.role==='lead');
+          const support = contenders.find(c=>c.role==='support');
+          if(lead && support && lead.id!==support.id){
+            body = `${lead.name} is tagged as the lead part here, so consider carving space by cutting ${support.name} in this range instead \u2014 or panning them apart so they're not stacked.`;
+          }
+          const di = contenders.find(c=>c.source==='di');
+          if(di) body += ` (${di.name} was captured direct, so that reading has no stage bleed in it.)`;
+        }
+        body += eqActionHint(b.lo, b.hi);
+        recs.push({ type:'conflict', band:b, key:'conflict:'+b.key+':'+contenders.map(c=>c.id+'@'+c.capturedAt).sort().join(','), title:`${names} compete in ${b.label} (${b.lo}\u2013${b.hi} Hz)`, body });
+      }
+    });
+  }
+
+  // 1b) Per-instrument tone checks — harshness (every tag), thinness/boxiness
+  // (strings, keys, vocals only). Every check compares an instrument only
+  // against its OWN captured shape — never an invented "ideal" curve.
+  captured.forEach(ins=>{ recs.push(...buildTagRecs(ins)); });
+
+  // 1c) Headroom above measured noise floor — only if a baseline was captured
+  if(state.noiseFloor){
+    captured.forEach(ins=>{
+      const margin = instrumentHeadroom(ins.levels);
+      if(margin < 10){
+        const bucket = gainBucket(ins.gainPos);
+        let body = `Only about ${margin.toFixed(1)} dB above the room/system noise you captured, in its own strongest range.`;
+        if(bucket==='high' || bucket==='near-max'){
+          body += ` Gain is set ${bucket==='near-max'?'near max':'fairly high'} on this one \u2014 try backing it off a touch and moving the mic closer instead, which usually beats fighting a noisy room with more gain.`;
+        } else if(bucket==='low' || bucket==='moderate'){
+          body += ` Gain isn\u2019t set particularly high here, so this is more likely room noise or mic distance than a gain-staging issue.`;
+        } else {
+          body += ` Worth checking gain staging and mic placement \u2014 this doesn't tell you which one it is, just that the margin is tight.`;
+        }
+        recs.push({
+          type:'noise-floor',
+          key:'noise-floor:'+ins.id+':'+ins.capturedAt+':'+state.noiseFloor.capturedAt+':'+(ins.gainPos||''),
+          title:`${ins.name} has thin headroom above your noise floor`,
+          body
+        });
+      }
+    });
+  }
+
+  // 2) Tonal balance vs style target
+  if(state.fullMix){
+    const target = getActiveTarget().curve;
+    const mixShape = shapeRelativeToMid(state.fullMix.levels);
+    BANDS.forEach(b=>{
+      const diff = mixShape[b.key]-target[b.key];
+      if(Math.abs(diff)>=3){
+        const hot = diff>0;
+        recs.push({
+          type: hot?'balance-hot':'balance-low', band:b,
+          key:(hot?'balance-hot:':'balance-low:')+b.key+':'+state.fullMix.capturedAt+':'+state.styleId,
+          title:`${b.label} is running ${hot?'hotter':'lighter'} than the ${getActiveTarget().name.split(' — ')[0]} target`,
+          body:`About ${Math.abs(diff).toFixed(1)} dB ${hot?'above':'below'} target in the ${b.lo}\u2013${b.hi} Hz range. ${hot? 'Consider a broad cut there on whichever instruments live in that band.' : 'Consider a gentle broad boost there, or check whether an instrument that should live in that range is buried.'}${eqActionHint(b.lo,b.hi)}`
+        });
+      }
+    });
+  }
+
+  // 3) Basic gap check — bands nobody has captured a strong presence in
+  if(captured.length>=3 && state.fullMix){
+    BANDS.forEach(b=>{
+      const anyOwns = captured.some(ins=>{
+        const own = ins.levels[b.key];
+        const ownMax = Math.max(...BANDS.map(bb=>ins.levels[bb.key]));
+        return (ownMax-own)<=7;
+      });
+      if(!anyOwns && state.fullMix.levels[b.key] < -55){
+        recs.push({
+          type:'balance-low', band:b,
+          key:'gap:'+b.key+':'+state.fullMix.capturedAt+':'+captured.map(c=>c.id+'@'+c.capturedAt).sort().join(','),
+          title:`Nothing clearly owns ${b.label} (${b.lo}\u2013${b.hi} Hz)`,
+          body:`None of your captured instruments peak here and the full mix is quiet in this range. If the arrangement calls for something in this range, that may be why the mix feels thin there.`
+        });
+      }
+    });
+  }
+
+  // 4) Venue acoustic profile (from the plain-language questionnaire)
+  if(state.venue.roomType){
+    recs.push(buildVenueRec());
+  }
+
+  // 5) Room mode estimate (from typed-in dimensions)
+  const roomModeRec = buildRoomModeRec();
+  if(roomModeRec) recs.push(roomModeRec);
+
+  recs.sort((a,b)=>{
+    const order={conflict:0,'noise-floor':1,harsh:2,'tone-thin':2,'tone-boxy':2,'balance-hot':3,'balance-low':4,'room-mode':5,venue:6};
+    return order[a.type]-order[b.type];
+  });
+  return recs;
+}
+
+/* Per-instrument tone checks. Everything here reads only the instrument's
+   own captured band levels — no invented "ideal" curve for any instrument
+   or genre. The tag only changes how the finding is worded. */
+function buildTagRecs(ins){
+  const recs = [];
+  const tag = ins.tag || 'other';
+  const levels = ins.levels;
+  const ownPeak = Math.max(...BANDS.map(b=>levels[b.key]));
+
+  // Harshness — applies to every tag. Presence+air nearly as loud as the
+  // instrument's own strongest range is the classic "harsh/fizzy" signature.
+  const harshLevel = combineBandsDb(levels, ['presence','air']);
+  if(ownPeak - harshLevel <= 7){
+    recs.push({
+      type:'harsh',
+      key:'harsh:'+ins.id+':'+ins.capturedAt,
+      title:`${ins.name} may sound harsh`,
+      body:`Its presence/air range (roughly 4\u201316 kHz) is nearly as loud as its own strongest range. ${HARSH_HINTS[tag]}${MIC_HINTS[ins.source]||''} Try sweeping a narrow EQ cut through 4\u20138 kHz and pulling back wherever it sounds most piercing.${eqActionHint(4000,16000)}`
+    });
+  }
+
+  // Thinness / boxiness — only where "body" is a meaningful idea (skip
+  // drums/bass: a hi-hat and a kick are both "drums" but want opposite things).
+  if(tag==='strings' || tag==='keys' || tag==='vocals'){
+    const bodyLevel = combineBandsDb(levels, ['lowmid','mid']);
+    if(ownPeak - levels.lowmid <= 3){
+      recs.push({
+        type:'tone-boxy',
+        key:'tone-boxy:'+ins.id+':'+ins.capturedAt,
+        title:`${ins.name} may sound boxy or muddy`,
+        body:`Its loudest range sits right in the 250\u2013500 Hz "boxy" zone. Try a narrow cut somewhere in there \u2014 sweep through it and pull back wherever it sounds most cardboard-y or congested.${eqActionHint(250,500)}`
+      });
+    } else if(ownPeak - bodyLevel >= 8){
+      recs.push({
+        type:'tone-thin',
+        key:'tone-thin:'+ins.id+':'+ins.capturedAt,
+        title:`${ins.name} may sound thin`,
+        body:`Its body range (roughly 250 Hz\u20132 kHz, where warmth and roundness live) sits well below its own strongest range. Try a broad, gentle boost somewhere in there, or check the mic or pickup is actually capturing the instrument's natural body.${eqActionHint(250,2000)}`
+      });
+    }
+  }
+
+  return recs;
+}
+
+function computeRoomModes(l,w,h){
+  const c=343; // speed of sound, m/s
+  const dims=[{name:'length',v:l},{name:'width',v:w},{name:'height',v:h}];
+  const modes=[];
+  dims.forEach(d=>{
+    if(!d.v) return;
+    for(let n=1;n<=2;n++){
+      const f = n*c/(2*d.v);
+      if(f>=20 && f<=300) modes.push({dim:d.name, n, f});
+    }
+  });
+  modes.sort((a,b)=>a.f-b.f);
+  return modes;
+}
+
+function buildRoomModeRec(){
+  const {l,w,h} = state.venue.dims;
+  if(!l||!w||!h) return null;
+  const modes = computeRoomModes(l,w,h);
+  if(!modes.length) return null;
+  const top = modes.slice(0,3).map(m=>Math.round(m.f)+' Hz').join(', ');
+  return {
+    type:'room-mode',
+    key:'room-mode:'+l.toFixed(2)+':'+w.toFixed(2)+':'+h.toFixed(2),
+    title:`This room may reinforce ${top}`,
+    body:`Based on its rough dimensions, low frequencies near ${top} could build up more than others in this space. If the bass or kick sounds boomy on specific notes rather than evenly across the range, this is a common reason why. Real rooms with furniture, doors, and non-parallel walls behave a bit differently than the idealized math — treat this as a starting point, not a certainty.`
+  };
+}
+
+function buildVenueRec(){
+  const v = state.venue;
+  if(v.roomType==='outdoor'){
+    return { type:'venue', key:'venue:outdoor', title:'Outdoor space — different challenges than a room',
+      body:'There\u2019s no room reflections to fight outdoors, but wind and open-air loss eat high frequencies over distance. You may need a bit more presence and air than an indoor target curve suggests, especially for listeners further from the PA.' };
+  }
+  const sizeScore = {small:0, mid:1, big:2}[v.roomType]||0;
+  const surfScore = {hard:2, mixed:0, soft:-2}[v.surfaces]||0;
+  const ceilScore = {low:0, medium:1, high:2}[v.ceiling]||0;
+  const occScore = {packed:-2, partial:0, empty:2}[v.occupancy]||0;
+  const score = sizeScore+surfScore+ceilScore+occScore;
+  let body;
+  if(score>=3){
+    body = 'Your answers describe a live, reflective room — hard surfaces and open space bounce sound around and it lingers a bit (engineers call this a longer \u201creverb time\u201d). Expect some extra buildup in the midrange, and be a little more conservative with presence boosts than the target curve suggests.';
+  } else if(score<=-1){
+    body = 'Your answers describe a fairly dead, sound-absorbent room — soft surfaces soak up reflections quickly. You may need a touch more presence and air than the target curve suggests to keep the mix from feeling dull.';
+  } else {
+    body = 'Your answers describe a fairly balanced room, acoustically — not especially live or dead. The style target curve should be a reasonable starting point without much extra adjustment for the room itself.';
+  }
+  if(v.occupancy && v.occupancy!=='packed'){
+    body += ' Also keep in mind: a full crowd absorbs a lot of sound, so re-check the mix once the room fills up — it will likely sound a bit different than it does right now.';
+  }
+  if(v.mode==='live' && score<=-1){
+    body += ' You\u2019ve set this for a live performance in a fairly dead room \u2014 if instruments sound unusually tight and dry, that\u2019s likely just the room, not something to chase with EQ.';
+  } else if(v.mode==='studio' && score>=3){
+    body += ' You\u2019ve set this for studio/recording in a fairly live, reflective room \u2014 if you\u2019re hearing more room tone or ambience than expected, that\u2019s the space, not necessarily a mic or gain issue.';
+  } else if(v.mode==='livestream'){
+    body += ' You\u2019ve set this for livestream \u2014 even if the room sounds live in person, stream listeners hear it through phone speakers or earbuds, where that same room ambience often just reads as muddy. Lean toward a tighter, more controlled sound regardless of what the room questions above suggest.';
+  } else if(v.mode==='live-livestream'){
+    body += ' You\u2019ve set this for both a live room and a livestream at once \u2014 these pull in different directions (the room can carry some natural reverb, the stream wants it controlled). A separate, drier feed for the stream usually serves both jobs better than one mix trying to do both.';
+  }
+  return { type:'venue', key:'venue:'+v.roomType+':'+v.surfaces+':'+v.ceiling+':'+v.occupancy+':'+v.mode, title:'Room profile', body };
+}
+
+/* ---------- Post-capture narrative ---------------------------------------
+   Shown immediately after any single-instrument capture (standalone or
+   guided). Everything here is either a direct read of the numbers just
+   captured, the existing self-referential tone checks, or — when a
+   per-instrument reference exists — a real measured comparison. The
+   archetype-lean note is the one soft/qualitative part, and it's phrased
+   as "worth checking," never as a verdict. */
+const NARR_TAGS = {harsh:'HARSHNESS', 'tone-thin':'THIN / LACKING BODY', 'tone-boxy':'BOXY / MUDDY'};
+function buildInstrumentNarrative(ins){
+  if(!ins.levels) return '<div class="note">Not captured yet.</div>';
+  const parts = [];
+  parts.push(`<div class="narrLine">Centered in <b>${topBandLabel(ins.levels)}</b>.</div>`);
+
+  const findings = buildTagRecs(ins);
+  if(findings.length){
+    findings.forEach(f=>{
+      parts.push(`<div class="recCard ${f.type}" style="margin-top:8px;"><div class="rtag">${NARR_TAGS[f.type]||''}</div><div class="rtitle">${f.title}</div><div class="rbody">${f.body}</div></div>`);
+    });
+  } else {
+    parts.push(`<div class="note" style="margin-top:8px;">No harshness, thinness, or boxiness flagged on its own.</div>`);
+  }
+
+  if(ins.refTarget){
+    const liveShape = shapeRelativeToPeak(ins.levels);
+    const diffs = BANDS.map(b=>({b, d: liveShape[b.key]-ins.refTarget.shape[b.key]}))
+      .filter(x=>Math.abs(x.d)>=4)
+      .sort((a,b)=>Math.abs(b.d)-Math.abs(a.d));
+    if(diffs.length){
+      const top = diffs[0];
+      parts.push(`<div class="recCard" style="margin-top:8px; border-left-color:var(--good);"><div class="rtag">VS. YOUR REFERENCE</div><div class="rtitle">${top.b.label} is ${top.d>0?'hotter':'lighter'} than \u201c${escapeHtml(ins.refTarget.name)}\u201d</div><div class="rbody">About ${Math.abs(top.d).toFixed(1)} dB ${top.d>0?'above':'below'} what your reference capture showed in this range \u2014 a real measured comparison, not a guess.</div></div>`);
+    } else {
+      parts.push(`<div class="note" style="margin-top:8px;">Its shape closely matches your reference capture (\u201c${escapeHtml(ins.refTarget.name)}\u201d).</div>`);
+    }
+    parts.push(`<button class="btn small ghost full" data-narr-ref="${ins.id}" style="margin-top:8px;">Recapture reference</button>`);
+  } else {
+    let bestBand=null, bv=-999;
+    BANDS.forEach(b=>{ if(ins.levels[b.key]>bv){ bv=ins.levels[b.key]; bestBand=b; } });
+    const target = getActiveTarget();
+    const lean = target.curve[bestBand.key];
+    if(lean<=-1.5){
+      parts.push(`<div class="note" style="margin-top:8px;">Its strongest range is ${bestBand.label} \u2014 your <b>${escapeHtml(target.name.split(' — ')[0])}</b> target generally leans away from that range in the final mix. Worth checking whether it needs carving back once everything else is in.</div>`);
+    } else if(lean>=1.5){
+      parts.push(`<div class="note" style="margin-top:8px;">Its strongest range is ${bestBand.label} \u2014 your <b>${escapeHtml(target.name.split(' — ')[0])}</b> target generally leans into that range, so this should sit fairly naturally.</div>`);
+    }
+    parts.push(`<div class="note" style="margin-top:8px;">Want a stronger comparison than this? Load an isolated reference for this instrument via the Recorded Mix source on Analyzer, then tap below.</div>`);
+    parts.push(`<button class="btn small full" data-narr-ref="${ins.id}" style="margin-top:8px;">Capture reference for ${escapeHtml(ins.name)}</button>`);
+  }
+  return parts.join('');
+}
+function showNarrativeFor(ins){
+  if(!ins || !ins.levels) return;
+  $('narrativeTitle').textContent = 'Latest capture \u2014 '+ins.name;
+  $('narrativeContent').innerHTML = buildInstrumentNarrative(ins);
+  $('narrativePanel').style.display = 'block';
+}
+async function captureInstrumentReference(insId, onDone){
+  if(!(state.source==='file' && state.running)){
+    alert('Load an isolated reference for this instrument via "Recorded mix" on the Analyzer tab, and make sure it\u2019s playing first.');
+    return;
+  }
+  const ins = state.instruments.find(i=>i.id===insId);
+  if(!ins) return;
+  const cap = await captureFor(6);
+  if(!cap) return;
+  ins.refTarget = { name: state.currentFileName || 'reference track', shape: shapeRelativeToPeak(cap.levels), capturedAt: Date.now() };
+  saveProfile();
+  if(onDone) onDone();
+}
+
+function refreshRecommendations(){
+  const all = computeRecommendations();
+  const visible = all.filter(r=>!r.key || !state.dismissed.includes(r.key));
+  renderRecommendations(visible, all.length);
+}
+
+function renderRecommendations(recs, totalBeforeFilter){
+  const el = $('recList');
+  if(!recs.length){
+    el.innerHTML = (totalBeforeFilter>0)
+      ? '<div class="recEmpty">You\u2019re all set \u2014 everything that was flagged is either fixed or dismissed.</div>'
+      : '<div class="recEmpty">No major conflicts or balance issues detected against the current style target. Trust your ears from here.</div>';
+    return;
+  }
+  const TAGS = {conflict:'FREQUENCY CONFLICT', 'balance-hot':'TOO HOT', 'balance-low':'TOO LIGHT', 'room-mode':'ROOM RESONANCE', venue:'VENUE', harsh:'HARSHNESS', 'tone-thin':'THIN / LACKING BODY', 'tone-boxy':'BOXY / MUDDY', 'noise-floor':'THIN HEADROOM'};
+  el.innerHTML = recs.map(r=>`
+    <div class="recCard ${r.type}">
+      <div class="rtag">${TAGS[r.type]||''}</div>
+      <div class="rtitle">${r.title}</div>
+      <div class="rbody">${r.body}</div>
+      ${r.key?`<button class="btn small ghost" data-dismiss="${r.key}" style="margin-top:8px;">Dismiss</button>`:''}
+    </div>`).join('');
+}
+
+/* ---------- Style presets ------------------------------------------------*/
+function styleCardHtml(s, removable){
+  return `
+    <div class="styleCard ${s.id===state.styleId?'selected':''}" data-id="${s.id}">
+      <div class="style-name"><span class="pick"></span>${escapeHtml(s.name)}${removable?`<button class="btn small ghost" data-rmref="${s.id}" style="margin-left:auto;">\u2715</button>`:''}</div>
+      <div class="style-desc">${escapeHtml(s.desc||'')}</div>
+      <div class="curveMini" id="curve-${s.id}"></div>
+    </div>`;
+}
+function renderStyleList(){
+  let html = STYLE_PRESETS.map(s=>styleCardHtml(s)).join('');
+  if(state.referenceTargets.length){
+    html += '<div class="note" style="margin:16px 0 8px; text-transform:uppercase; letter-spacing:.06em; font-size:10.5px; color:var(--text-faint);">Your reference tracks</div>';
+    html += state.referenceTargets.map(r=>styleCardHtml({id:r.id, name:r.name, desc:'Captured from a reference track'}, true)).join('');
+  }
+  $('styleList').innerHTML = html;
+  STYLE_PRESETS.forEach(s=>drawCurveMini(s));
+  state.referenceTargets.forEach(r=>drawCurveMini({id:r.id, curve:r.curve}));
+}
+function drawCurveMini(style){
+  const wrap = $('curve-'+style.id);
+  if(!wrap) return;
+  const c = document.createElement('canvas');
+  c.width = wrap.clientWidth||280; c.height=34;
+  wrap.innerHTML=''; wrap.appendChild(c);
+  const cx=c.getContext('2d'); const bw=c.width/BANDS.length;
+  BANDS.forEach((b,i)=>{
+    const v = style.curve[b.key];
+    const h = 4+Math.min(26, Math.abs(v)*4);
+    cx.fillStyle = BAND_COLORS_HEX[b.key];
+    cx.globalAlpha = v>=0?1:0.4;
+    if(v>=0) cx.fillRect(i*bw+1, 17-h, bw-2, h);
+    else cx.fillRect(i*bw+1, 17, bw-2, h);
+    cx.globalAlpha=1;
+  });
+}
+
+/* ---------- Log -----------------------------------------------------------*/
+function pushLog(recs){
+  const styleName = getActiveTarget().name;
+  state.log.unshift({time:Date.now(), count:recs.length, style:styleName, source:state.source});
+  state.log = state.log.slice(0,20);
+  renderLog();
+}
+function renderLog(){
+  const el=$('logList');
+  if(!state.log.length){ el.innerHTML='<div class="recEmpty">Nothing analyzed yet this session.</div>'; return; }
+  el.innerHTML = state.log.map(l=>`
+    <div class="logItem">
+      <div class="lt mono">${new Date(l.time).toLocaleTimeString()} \u00b7 ${l.source==='mic'?'Mic':'Recorded mix'} \u00b7 ${l.style}</div>
+      <div class="ls">${l.count} recommendation${l.count===1?'':'s'} flagged</div>
+    </div>`).join('');
+}
+
+function renderSetupsList(){
+  const el = $('setupsList');
+  if(!state.setups.length){ el.innerHTML = '<div class="recEmpty">No saved setups yet.</div>'; return; }
+  el.innerHTML = state.setups.map(s=>{
+    const capturedCount = s.data.instruments.filter(i=>i.levels).length;
+    return `
+    <div class="instrItem" style="align-items:flex-start;">
+      <div class="dot" style="background:var(--accent); margin-top:4px;"></div>
+      <div class="meta">
+        <div class="instr-name">${escapeHtml(s.name)}</div>
+        <div class="instr-sub">${new Date(s.savedAt).toLocaleDateString()} \u00b7 ${capturedCount} instrument${capturedCount===1?'':'s'} captured</div>
+        <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;">
+          <button class="btn small" data-act="load" data-id="${s.id}">Load</button>
+          <button class="btn small" data-act="compare" data-id="${s.id}">Compare</button>
+          <button class="btn small ghost" data-act="rename" data-id="${s.id}">Rename</button>
+          <button class="btn small ghost" data-act="export" data-id="${s.id}">Export</button>
+          <button class="btn small ghost" data-act="delete" data-id="${s.id}">Delete</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderCompareResult(setup, results){
+  const el = $('compareResult');
+  el.style.display = 'block';
+  if(!results.length){
+    el.innerHTML = `<div class="note" style="margin-top:10px;">Compared against "${escapeHtml(setup.name)}" \u2014 nothing you've recaptured live has moved more than 3\u2009dB in any band.</div>`;
+    return;
+  }
+  el.innerHTML = `<div class="note" style="margin:10px 0 8px;">Compared against "${escapeHtml(setup.name)}":</div>` +
+    results.map(r=>`
+      <div class="recCard" style="margin-bottom:8px;">
+        <div class="rtitle">${escapeHtml(r.name)}</div>
+        <div class="rbody">${r.diffs.map(d=>`${d.label} ${d.delta>0?'+':''}${d.delta.toFixed(1)} dB`).join(', ')}</div>
+      </div>`).join('');
+}
+
+/* ---------- Venue: units (meters is canonical storage; display converts) ---*/
+function unitLabel(){ return state.venue.unit==='ft' ? 'ft' : 'm'; }
+function toDisplayUnit(meters){ return state.venue.unit==='ft' ? meters/0.3048 : meters; }
+function toMeters(value){ return state.venue.unit==='ft' ? value*0.3048 : value; }
+
+function setVenueUnit(u){
+  state.venue.unit = u;
+  $('unitMBtn').classList.toggle('active', u!=='ft');
+  $('unitFtBtn').classList.toggle('active', u==='ft');
+  ['dimUnitL','dimUnitW','dimUnitH'].forEach(id=>$(id).textContent=unitLabel());
+  const d = state.venue.dims;
+  if(d.l) $('dimL').value = toDisplayUnit(d.l).toFixed(2);
+  if(d.w) $('dimW').value = toDisplayUnit(d.w).toFixed(2);
+  if(d.h) $('dimH').value = toDisplayUnit(d.h).toFixed(2);
+  updatePaceUnitLabels();
+  renderDistances();
+  updateDistUnitNote();
+  saveProfile();
+}
+function updateDistUnitNote(){
+  const el = $('distUnitNote');
+  if(el) el.textContent = 'Showing and entering distances in ' + (state.venue.unit==='ft'?'feet':'meters') + '.';
+}
+
+function updatePaceUnitLabels(){
+  const strideEl = $('strideLen');
+  if(state.venue.unit==='ft'){ strideEl.min=1.3; strideEl.max=3.6; strideEl.step=0.02; strideEl.value=2.36; }
+  else { strideEl.min=0.4; strideEl.max=1.1; strideEl.step=0.01; strideEl.value=0.72; }
+  $('strideLenVal').textContent = parseFloat(strideEl.value).toFixed(2)+' '+unitLabel();
+
+  const speedEl = $('walkSpeed');
+  if(state.venue.unit==='ft'){ speedEl.min=2.6; speedEl.max=5.9; speedEl.step=0.1; speedEl.value=4.27; }
+  else { speedEl.min=0.8; speedEl.max=1.8; speedEl.step=0.05; speedEl.value=1.3; }
+  $('walkSpeedVal').textContent = parseFloat(speedEl.value).toFixed(2)+' '+unitLabel()+'/s';
+}
+
+/* ---------- Venue: stage photo + camera -----------------------------------*/
+let camStream = null;
+
+async function startCam(){
+  try{
+    camStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}}, audio:false});
+    const v = $('camPreview');
+    v.srcObject = camStream;
+    v.style.display='block';
+    $('startCamBtn').style.display='none';
+    $('capturePhotoBtn').style.display='inline-block';
+    $('stageNote').textContent = 'Point the camera at the stage or venue, then tap Capture photo.';
+  }catch(err){
+    $('stageNote').textContent = 'Camera access was blocked. If you\u2019re viewing this inside Claude\u2019s chat preview, download the file and open it on its own — the preview sandbox blocks camera access there. Otherwise, check your browser\u2019s site permissions for this page.';
+    $('startCamBtn').style.display='inline-block';
+    $('capturePhotoBtn').style.display='none';
+  }
+}
+function stopCam(){
+  if(camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream=null; }
+  const v=$('camPreview'); if(v){ v.style.display='none'; }
+  const startBtn=$('startCamBtn'), capBtn=$('capturePhotoBtn');
+  if(startBtn && !state.venue.stagePhoto) startBtn.style.display='inline-block';
+  if(capBtn) capBtn.style.display='none';
+}
+function capturePhoto(){
+  const v=$('camPreview'), c=$('stageCanvas');
+  const maxW=720;
+  const scale = Math.min(1, maxW/(v.videoWidth||maxW));
+  c.width = Math.round((v.videoWidth||maxW)*scale);
+  c.height = Math.round((v.videoHeight||maxW*0.75)*scale);
+  c.getContext('2d').drawImage(v,0,0,c.width,c.height);
+  state.venue.stagePhoto = c.toDataURL('image/jpeg',0.6);
+  state.venue.pins = [];
+  stopCam();
+  $('stageImageWrap').style.display='block';
+  $('capturePhotoBtn').style.display='none';
+  $('retakePhotoBtn').style.display='inline-block';
+  $('stageNote').textContent = 'Tap anywhere on the photo to drop a labeled pin.';
+  renderPins();
+  saveProfile();
+}
+function retakePhoto(){
+  state.venue.stagePhoto = null;
+  state.venue.pins = [];
+  $('stageImageWrap').style.display='none';
+  $('retakePhotoBtn').style.display='none';
+  $('stageNote').textContent = 'Take a photo of the stage or venue, then tap on it to drop labeled pins — mic positions, speakers, instruments.';
+  saveProfile();
+  startCam();
+}
+
+/* ---------- Venue: pins -----------------------------------------------------*/
+let pendingPin = null;
+function renderPinChips(){
+  $('pinChips').innerHTML = PIN_CHIPS.map(c=>`<button class="btn small" data-chip="${c}">${c}</button>`).join('');
+}
+function placePin(label){
+  if(!pendingPin) return;
+  state.venue.pins.push({id:uid(), label, x:pendingPin.x, y:pendingPin.y});
+  pendingPin=null;
+  $('pinEditor').style.display='none';
+  renderPins();
+  saveProfile();
+}
+function renderPins(){
+  const c = $('stageCanvas'), layer = $('pinLayer');
+  layer.style.width = c.clientWidth+'px';
+  layer.style.height = c.clientHeight+'px';
+  layer.innerHTML = state.venue.pins.map(p=>`
+    <div class="pinDot" style="left:${p.x*100}%; top:${p.y*100}%;">
+      <span class="pinLabel">${escapeHtml(p.label)}</span>
+      <span class="pdot"></span>
+    </div>`).join('');
+  $('pinList').innerHTML = state.venue.pins.length ? state.venue.pins.map(p=>`
+    <div class="instrItem" style="padding:8px 10px;">
+      <div class="dot" style="background:var(--accent)"></div>
+      <div class="meta"><div class="instr-name" style="font-size:13px;">${escapeHtml(p.label)}</div></div>
+      <button class="btn small ghost" data-rmpin="${p.id}">\u2715</button>
+    </div>`).join('') : '';
+  renderPinDatalist();
+}
+function renderPinDatalist(){
+  const dl = $('pinDatalist');
+  if(!dl) return;
+  dl.innerHTML = state.venue.pins.map(p=>`<option value="${escapeHtml(p.label)}">`).join('');
+}
+
+/* ---------- Venue: dimensions / room modes -----------------------------------*/
+function renderModeResult(modes){
+  if(!modes.length){
+    $('modeResult').textContent = 'No strong low-frequency buildup expected in the 20\u2013300 Hz range for this size room \u2014 rough estimate only.';
+    return;
+  }
+  const list = modes.map(m=>`~${m.f.toFixed(0)} Hz (${m.dim})`).join(', ');
+  $('modeResult').textContent = `Rough resonance estimate: ${list}. If your bass or kick sounds boomy on a particular note, it may be lining up with one of these. Assumes an empty rectangular room with hard, parallel walls \u2014 real rooms differ.`;
+}
+
+/* ---------- Venue: distances --------------------------------------------------*/
+function renderDistances(){
+  const el=$('distList');
+  if(!state.venue.distances.length){ el.innerHTML='<div class="recEmpty">No distances saved yet.</div>'; return; }
+  el.innerHTML = state.venue.distances.map(d=>`
+    <div class="instrItem" style="padding:8px 10px;">
+      <div class="dot" style="background:${d.method==='known'?'var(--good)':'var(--accent)'}"></div>
+      <div class="meta">
+        <div class="instr-name" style="font-size:13px;">${escapeHtml(d.from)} \u2192 ${escapeHtml(d.to)}</div>
+        <div class="instr-sub">${toDisplayUnit(d.meters).toFixed(1)} ${unitLabel()} \u00b7 ${d.method==='known'?'entered':d.method==='paced'?'paced off':'timed guess'}</div>
+      </div>
+      <button class="btn small ghost" data-rmdist="${d.id}">\u2715</button>
+    </div>`).join('');
+}
+
+/* ---------- Venue: pace-off ("walk it off") distance guesser -----------------*/
+let paceState = {from:'', to:'', method:null, steps:0, startTime:0, timerInterval:null, result:null};
+
+function openPaceOverlay(from,to){
+  paceState = {from,to,method:null,steps:0,startTime:0,timerInterval:null,result:null};
+  $('paceTitle').textContent = `${from.toUpperCase()} \u2192 ${to.toUpperCase()}`;
+  $('paceMethodPick').style.display='flex';
+  $('paceTapUI').style.display='none';
+  $('paceTimeUI').style.display='none';
+  $('paceResult').style.display='none';
+  $('paceResultBtns').style.display='none';
+  $('stepCount').textContent='0';
+  $('timeCount').textContent='0:00';
+  $('timeStartBtn').style.display='block';
+  $('timeDoneBtn').style.display='none';
+  $('paceOverlay').classList.add('show');
+}
+function closePaceOverlay(){
+  if(paceState.timerInterval) clearInterval(paceState.timerInterval);
+  $('paceOverlay').classList.remove('show');
+}
+
+/* ---------- Venue: UI hydration on load ---------------------------------------*/
+function hydratePreviewUI(){
+  $('previewEqFreq').value = Math.log10(state.previewEq.freq);
+  $('previewEqFreqVal').textContent = fmtHz(state.previewEq.freq);
+  $('previewEqGain').value = state.previewEq.gain;
+  $('previewEqGainVal').textContent = (state.previewEq.gain>0?'+':'')+state.previewEq.gain.toFixed(1)+' dB';
+  $('previewEqQ').value = state.previewEq.q;
+  $('previewEqQVal').textContent = state.previewEq.q.toFixed(1);
+  $('previewEqToggle').textContent = state.previewEq.enabled ? 'On' : 'Off';
+  $('previewEqToggle').classList.toggle('active', state.previewEq.enabled);
+  $('previewCompThresh').value = state.previewComp.threshold;
+  $('previewCompThreshVal').textContent = state.previewComp.threshold.toFixed(0)+' dB';
+  $('previewCompRatio').value = state.previewComp.ratio;
+  $('previewCompRatioVal').textContent = state.previewComp.ratio.toFixed(1)+':1';
+  $('previewCompToggle').textContent = state.previewComp.enabled ? 'On' : 'Off';
+  $('previewCompToggle').classList.toggle('active', state.previewComp.enabled);
+}
+function hydrateEqUI(){
+  const eq = state.eqProfile;
+  $('eqTypeSelect').value = eq.type;
+  $('eqGraphicRow').style.display = eq.type==='graphic' ? 'block' : 'none';
+  $('eqMidSweepRow').style.display = eq.type==='tone3' ? 'block' : 'none';
+  $('eqGraphicBands').value = (eq.graphicBands||[]).map(f=>f>=1000?(f/1000)+'k':f).join(',');
+  $('eqMidSweepToggle').textContent = 'Mid is sweepable: '+(eq.sweepableMid?'Yes':'No');
+}
+function hydrateVenueUI(){
+  const v = state.venue;
+  $('unitMBtn').classList.toggle('active', v.unit!=='ft');
+  $('unitFtBtn').classList.toggle('active', v.unit==='ft');
+  ['dimUnitL','dimUnitW','dimUnitH'].forEach(id=>$(id).textContent=unitLabel());
+  updatePaceUnitLabels();
+  ['roomType','surfaces','ceiling','occupancy','mode'].forEach(key=>{
+    const block = document.querySelector(`.qBlock[data-q="${key}"]`);
+    if(!block) return;
+    block.querySelectorAll('.qOpts button').forEach(b=>{
+      b.classList.toggle('active', !!v[key] && b.dataset.v===v[key]);
+    });
+  });
+  if(v.dims && v.dims.l && v.dims.w && v.dims.h){
+    $('dimL').value=toDisplayUnit(v.dims.l).toFixed(2);
+    $('dimW').value=toDisplayUnit(v.dims.w).toFixed(2);
+    $('dimH').value=toDisplayUnit(v.dims.h).toFixed(2);
+    renderModeResult(computeRoomModes(v.dims.l,v.dims.w,v.dims.h));
+  }
+  // Always reset stage-photo UI first, then show one only if this venue has it —
+  // otherwise loading a setup/profile with no photo would leave a stale one on screen.
+  $('stageImageWrap').style.display='none';
+  $('retakePhotoBtn').style.display='none';
+  $('capturePhotoBtn').style.display='none';
+  $('startCamBtn').style.display='inline-block';
+  $('stageNote').textContent = 'Take a photo of the stage or venue, then tap on it to drop labeled pins — mic positions, speakers, instruments.';
+  state.venue.pins = state.venue.pins || [];
+  if(v.stagePhoto){
+    const img = new Image();
+    img.onload=()=>{
+      const c=$('stageCanvas');
+      c.width=img.width; c.height=img.height;
+      c.getContext('2d').drawImage(img,0,0);
+      $('stageImageWrap').style.display='block';
+      $('capturePhotoBtn').style.display='none';
+      $('startCamBtn').style.display='none';
+      $('retakePhotoBtn').style.display='inline-block';
+      $('stageNote').textContent = 'Tap anywhere on the photo to drop a labeled pin.';
+      renderPins();
+    };
+    img.src = v.stagePhoto;
+  }
+  renderPinChips();
+  renderPinDatalist();
+  renderDistances();
+  updateDistUnitNote();
+}
+
+/* ---------- Persistence — plain localStorage, works on any host --------- */
+function lsGet(key){
+  try{ const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; }
+  catch(e){ return null; }
+}
+function lsSet(key, value){
+  try{ localStorage.setItem(key, JSON.stringify(value)); return {ok:true}; }
+  catch(e){ return {ok:false, error:e}; }
+}
+
+function saveProfile(){
+  const payload = {
+    instruments: state.instruments.map(i=>({id:i.id,name:i.name,color:i.color,levels:i.levels,fine:i.fine,capturedAt:i.capturedAt,tag:i.tag,role:i.role,source:i.source,gainPos:i.gainPos,refTarget:i.refTarget})),
+    styleId: state.styleId,
+    venue: state.venue,
+    referenceTargets: state.referenceTargets,
+    noiseFloor: state.noiseFloor,
+    dismissed: state.dismissed,
+    eqProfile: state.eqProfile
+  };
+  lsSet('sideman:profile', payload);
+}
+function loadProfile(){
+  const payload = lsGet('sideman:profile');
+  if(payload){
+    if(payload.instruments && payload.instruments.length) state.instruments = payload.instruments;
+    if(payload.styleId) state.styleId = payload.styleId;
+    if(payload.venue) state.venue = Object.assign(
+      {roomType:null,surfaces:null,ceiling:null,occupancy:null,unit:'m',dims:{l:null,w:null,h:null},pins:[],stagePhoto:null,distances:[]},
+      payload.venue
+    );
+    if(payload.referenceTargets) state.referenceTargets = payload.referenceTargets;
+    if(payload.noiseFloor) state.noiseFloor = payload.noiseFloor;
+    if(Array.isArray(payload.dismissed)) state.dismissed = payload.dismissed;
+    if(payload.eqProfile) state.eqProfile = Object.assign({type:'none', graphicBands:[], sweepableMid:false}, payload.eqProfile);
+  }
+  if(!state.instruments.length) state.instruments = buildDefaultInstruments();
+  state.instruments.forEach(ins=>{ if(!ins.tag) ins.tag = guessTag(ins.name); }); // backfill for profiles saved before tagging existed
+  loadSetups();
+}
+function resetProfile(){
+  state.instruments = buildDefaultInstruments();
+  state.fullMix = null;
+  state.venue = {roomType:null,surfaces:null,ceiling:null,occupancy:null,unit:'m',dims:{l:null,w:null,h:null},pins:[],stagePhoto:null,distances:[]};
+  state.referenceTargets = [];
+  state.noiseFloor = null;
+  state.dismissed = [];
+  state.eqProfile = {type:'none', graphicBands:[], sweepableMid:false};
+  if(!STYLE_PRESETS.some(s=>s.id===state.styleId)) state.styleId = STYLE_PRESETS[0].id;
+  saveProfile();
+  renderInstrList(); renderStyleList(); hydrateVenueUI(); hydrateEqUI();
+  $('mixCompareWrap').style.display='none';
+  $('stageImageWrap').style.display='none';
+  $('startCamBtn').style.display='inline-block';
+  $('capturePhotoBtn').style.display='none';
+  $('retakePhotoBtn').style.display='none';
+  $('noiseFloorNote') && updateNoiseFloorNote();
+  document.querySelectorAll('.qOpts button.active').forEach(b=>b.classList.remove('active'));
+  renderRecommendations([]);
+}
+
+/* ---------- Saved setups: named snapshots of the whole working state ---- */
+function loadSetups(){
+  const arr = lsGet('sideman:setups');
+  state.setups = Array.isArray(arr) ? arr : [];
+}
+function saveSetups(){ return lsSet('sideman:setups', state.setups); }
+
+function saveCurrentAsSetup(name){
+  const setup = {
+    id: 'setup_'+uid(),
+    name: (name||'').trim() || ('Setup '+(state.setups.length+1)),
+    savedAt: Date.now(),
+    data: {
+      instruments: state.instruments.map(i=>({id:i.id,name:i.name,color:i.color,levels:i.levels,fine:i.fine,capturedAt:i.capturedAt,tag:i.tag,role:i.role,source:i.source,gainPos:i.gainPos,refTarget:i.refTarget})),
+      venue: state.venue,
+      styleId: state.styleId,
+      referenceTargets: state.referenceTargets,
+      noiseFloor: state.noiseFloor,
+      eqProfile: state.eqProfile
+    }
+  };
+  state.setups.push(setup);
+  const res = saveSetups();
+  if(!res.ok) state.setups.pop(); // didn't fit — don't pretend it saved
+  return res;
+}
+function loadSetup(id){
+  const setup = state.setups.find(s=>s.id===id);
+  if(!setup) return;
+  state.instruments = setup.data.instruments.map(i=>Object.assign({}, i));
+  state.venue = Object.assign(
+    {roomType:null,surfaces:null,ceiling:null,occupancy:null,unit:'m',dims:{l:null,w:null,h:null},pins:[],stagePhoto:null,distances:[]},
+    setup.data.venue
+  );
+  state.styleId = setup.data.styleId || STYLE_PRESETS[0].id;
+  state.referenceTargets = setup.data.referenceTargets || [];
+  state.noiseFloor = setup.data.noiseFloor || null;
+  state.eqProfile = Object.assign({type:'none', graphicBands:[], sweepableMid:false}, setup.data.eqProfile||{});
+  state.fullMix = null;
+  saveProfile();
+  renderInstrList(); renderStyleList(); hydrateVenueUI(); hydrateEqUI(); updateNoiseFloorNote();
+  $('mixCompareWrap').style.display='none';
+  refreshRecommendations();
+}
+function deleteSetup(id){ state.setups = state.setups.filter(s=>s.id!==id); saveSetups(); }
+function renameSetup(id, name){
+  const setup = state.setups.find(s=>s.id===id);
+  if(setup && name && name.trim()){ setup.name = name.trim(); saveSetups(); }
+}
+
+/* Band-by-band diff between a saved setup's captures and whatever's
+   currently captured live, matched by instrument name. */
+function compareToSetup(setup){
+  const results = [];
+  setup.data.instruments.forEach(savedIns=>{
+    if(!savedIns.levels) return;
+    const liveIns = state.instruments.find(i=>i.name===savedIns.name && i.levels);
+    if(!liveIns) return;
+    const diffs = BANDS
+      .filter(b=>Math.abs(liveIns.levels[b.key]-savedIns.levels[b.key])>=3)
+      .map(b=>({label:b.label, delta: liveIns.levels[b.key]-savedIns.levels[b.key]}));
+    if(diffs.length) results.push({name:savedIns.name, diffs});
+  });
+  return results;
+}
+
+/* ---------- Export / import — JSON file, no server involved ------------- */
+function downloadJson(filename, obj){
+  const blob = new Blob([JSON.stringify(obj, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+}
+function slugify(s){ return (s||'export').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,''); }
+
+function exportInstrument(ins){
+  downloadJson(`sideman-${slugify(ins.name)}.json`, {
+    sideman:'instrument', version:1, builtWith: atob(_bh),
+    name: ins.name, tag: ins.tag, role: ins.role, source: ins.source, gainPos: ins.gainPos, levels: ins.levels, fine: ins.fine, refTarget: ins.refTarget, capturedAt: ins.capturedAt
+  });
+}
+async function importInstrumentFile(file){
+  try{
+    const data = JSON.parse(await file.text());
+    if(!data.levels) throw new Error('not an instrument file');
+    state.instruments.push({
+      id: uid(), name: data.name||'Imported', tag: data.tag||guessTag(data.name||''),
+      role: data.role||null, source: data.source||null, gainPos: data.gainPos||null, refTarget: data.refTarget||null,
+      color: INSTR_COLORS[state.instruments.length%INSTR_COLORS.length],
+      levels: data.levels, fine: data.fine||null, capturedAt: data.capturedAt||Date.now()
+    });
+    renderInstrList(); saveProfile(); refreshRecommendations();
+  }catch(e){
+    alert('Couldn\u2019t read that file \u2014 make sure it\u2019s an instrument exported from Sideman.');
+  }
+}
+function exportSetupFile(setup){
+  downloadJson(`sideman-setup-${slugify(setup.name)}.json`, {
+    sideman:'setup', version:1, builtWith: atob(_bh), name:setup.name, savedAt:setup.savedAt, data:setup.data
+  });
+}
+async function importSetupFile(file){
+  try{
+    const data = JSON.parse(await file.text());
+    if(!data.data || !data.data.instruments) throw new Error('not a setup file');
+    state.setups.push({ id:'setup_'+uid(), name:data.name||'Imported setup', savedAt:Date.now(), data:data.data });
+    saveSetups();
+    renderSetupsList();
+  }catch(e){
+    alert('Couldn\u2019t read that file \u2014 make sure it\u2019s a setup exported from Sideman.');
+  }
+}
+
+/* ---------- Tabs -----------------------------------------------------------*/
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tabbtn').forEach(b=>b.classList.remove('active'));
+  $('tab-'+name).classList.add('active');
+  document.querySelector(`.tabbtn[data-tab="${name}"]`).classList.add('active');
+  if(name==='style') renderStyleList();
+  if(name==='venue' && state.venue.stagePhoto) renderPins();
+  if(name!=='venue') stopCam();
+}
+
+/* ---------- Wiring -----------------------------------------------------------*/
+function wireEvents(){
+  document.querySelectorAll('.tabbtn').forEach(b=>b.addEventListener('click',()=>switchTab(b.dataset.tab)));
+
+  function setSource(name){
+    state.source = name;
+    ['srcMicBtn','srcFileBtn','srcSysBtn'].forEach(id=>$(id).classList.toggle('active', id==='src'+name[0].toUpperCase()+name.slice(1)+'Btn'));
+    $('micCompPanel').style.display = (name==='mic') ? 'block' : 'none';
+  }
+  $('srcMicBtn').addEventListener('click',()=>{
+    setSource('mic');
+    $('file-controls').classList.remove('show');
+    $('micDeviceRow').style.display='block';
+    stopSource(); statusLine.textContent='Idle';
+    $('spectrum-empty').style.display='flex';
+    $('spectrum-empty').textContent='Tap Start and allow microphone access to see the live spectrum.';
+  });
+  $('srcFileBtn').addEventListener('click',()=>{
+    setSource('file');
+    $('micDeviceRow').style.display='none';
+    stopSource(); statusLine.textContent='Idle';
+    $('fileInput').click();
+  });
+  $('srcSysBtn').addEventListener('click',()=>{
+    setSource('sys');
+    $('file-controls').classList.remove('show');
+    $('micDeviceRow').style.display='none';
+    stopSource(); statusLine.textContent='Idle';
+    $('spectrum-empty').style.display='flex';
+    $('spectrum-empty').textContent='Tap Start, then share a screen or tab and check \u201cShare audio.\u201d Works in Chrome/Edge on a computer — e.g. to monitor OBS\u2019s output.';
+  });
+  $('micDeviceSelect').addEventListener('change',()=>{
+    if(state.running && state.source==='mic') startMic();
+  });
+  $('fileInput').addEventListener('change', (e)=>{
+    const f = e.target.files[0]; if(!f) return;
+    state.currentFileName = f.name.replace(/\.[^.]+$/, '');
+    const player = $('playerEl');
+    player.src = URL.createObjectURL(f);
+    $('file-controls').classList.add('show');
+    $('spectrum-empty').textContent='Tap Start to analyze this file.';
+  });
+  $('startBtn').addEventListener('click', async ()=>{
+    if(state.source==='mic'){
+      try{ await startMic(); }catch(e){}
+    } else if(state.source==='sys'){
+      await startSystemAudio();
+    } else {
+      const player=$('playerEl');
+      if(!player.src){ $('fileInput').click(); return; }
+      ensureCtx();
+      startFilePlayback();
+      player.play();
+    }
+  });
+
+  $('playPauseBtn').addEventListener('click',()=>{
+    const p=$('playerEl');
+    if(p.paused){ p.play(); $('playPauseBtn').textContent='Pause'; } else { p.pause(); $('playPauseBtn').textContent='Play'; }
+  });
+  $('playerEl').addEventListener('timeupdate',()=>{
+    const p=$('playerEl'); if(!p.duration) return;
+    $('seek').value = (p.currentTime/p.duration)*100;
+    $('timeLabel').textContent = fmtTime(p.currentTime)+' / '+fmtTime(p.duration);
+  });
+  $('seek').addEventListener('input',()=>{
+    const p=$('playerEl'); if(!p.duration) return;
+    p.currentTime = (parseFloat($('seek').value)/100)*p.duration;
+  });
+
+  $('tiltBass').addEventListener('input',()=>{
+    state.tiltBass = parseFloat($('tiltBass').value);
+    $('tiltBassVal').textContent = '+'+state.tiltBass.toFixed(1)+' dB';
+  });
+  $('tiltAir').addEventListener('input',()=>{
+    state.tiltAir = parseFloat($('tiltAir').value);
+    $('tiltAirVal').textContent = '+'+state.tiltAir.toFixed(1)+' dB';
+  });
+  $('captureNoiseFloorBtn').addEventListener('click', async ()=>{
+    if(!state.running){ alert('Start listening first — with the room quiet, nobody playing.'); return; }
+    const btn = $('captureNoiseFloorBtn');
+    btn.disabled = true;
+    const cap = await captureFor(4, (p)=>{ btn.textContent = `Listening… ${Math.ceil(4*(1-p))}s`; });
+    btn.disabled = false;
+    btn.textContent = 'Capture noise floor (4s)';
+    if(!cap) return;
+    state.noiseFloor = {levels:cap.levels, fine:cap.fine, capturedAt:Date.now()};
+    updateNoiseFloorNote();
+    renderInstrList(); saveProfile(); refreshRecommendations();
+  });
+
+  /* ---- Audition EQ/compressor preview ---- */
+  $('previewEqToggle').addEventListener('click',()=>{
+    state.previewEq.enabled = !state.previewEq.enabled;
+    $('previewEqToggle').textContent = state.previewEq.enabled ? 'On' : 'Off';
+    $('previewEqToggle').classList.toggle('active', state.previewEq.enabled);
+    updatePreviewFilter();
+  });
+  $('previewEqFreq').addEventListener('input',()=>{
+    const f = Math.round(Math.pow(10, parseFloat($('previewEqFreq').value)));
+    state.previewEq.freq = f;
+    $('previewEqFreqVal').textContent = fmtHz(f);
+    updatePreviewFilter();
+  });
+  $('previewEqGain').addEventListener('input',()=>{
+    state.previewEq.gain = parseFloat($('previewEqGain').value);
+    $('previewEqGainVal').textContent = (state.previewEq.gain>0?'+':'')+state.previewEq.gain.toFixed(1)+' dB';
+    updatePreviewFilter();
+  });
+  $('previewEqQ').addEventListener('input',()=>{
+    state.previewEq.q = parseFloat($('previewEqQ').value);
+    $('previewEqQVal').textContent = state.previewEq.q.toFixed(1);
+    updatePreviewFilter();
+  });
+  $('previewCompToggle').addEventListener('click',()=>{
+    state.previewComp.enabled = !state.previewComp.enabled;
+    $('previewCompToggle').textContent = state.previewComp.enabled ? 'On' : 'Off';
+    $('previewCompToggle').classList.toggle('active', state.previewComp.enabled);
+    updatePreviewComp();
+  });
+  $('previewCompThresh').addEventListener('input',()=>{
+    state.previewComp.threshold = parseFloat($('previewCompThresh').value);
+    $('previewCompThreshVal').textContent = state.previewComp.threshold.toFixed(0)+' dB';
+    updatePreviewComp();
+  });
+  $('previewCompRatio').addEventListener('input',()=>{
+    state.previewComp.ratio = parseFloat($('previewCompRatio').value);
+    $('previewCompRatioVal').textContent = state.previewComp.ratio.toFixed(1)+':1';
+    updatePreviewComp();
+  });
+
+  $('addInstrBtn').addEventListener('click',()=>{
+    const name = $('newInstrName').value.trim();
+    if(!name) return;
+    const tag = guessTag(name);
+    state.instruments.push({id:uid(), name, color:INSTR_COLORS[state.instruments.length%INSTR_COLORS.length], levels:null, capturedAt:null, tag, role:guessRole(name,tag)});
+    $('newInstrName').value='';
+    renderInstrList(); saveProfile();
+  });
+  $('importInstrBtn').addEventListener('click',()=>{ $('instrFileInput').click(); });
+  $('instrFileInput').addEventListener('change',(e)=>{
+    const f = e.target.files[0]; if(!f) return;
+    importInstrumentFile(f);
+    e.target.value = '';
+  });
+  $('instrList').addEventListener('click', async (e)=>{
+    const roleBtn = e.target.closest('button[data-role]');
+    if(roleBtn){
+      const ins = state.instruments.find(i=>i.id===roleBtn.dataset.id);
+      if(ins){
+        ins.role = (ins.role===roleBtn.dataset.role) ? null : roleBtn.dataset.role;
+        renderInstrList(); saveProfile(); refreshRecommendations();
+      }
+      return;
+    }
+    const btn = e.target.closest('button[data-act]');
+    if(!btn) return;
+    const id = btn.dataset.id;
+    if(btn.dataset.act==='remove'){
+      state.instruments = state.instruments.filter(i=>i.id!==id);
+      renderInstrList(); saveProfile();
+      refreshRecommendations();
+    } else if(btn.dataset.act==='export'){
+      const ins = state.instruments.find(i=>i.id===id);
+      if(ins) exportInstrument(ins);
+    } else if(btn.dataset.act==='capture'){
+      if(!state.running){ alert('Start listening first.'); return; }
+      const ins = state.instruments.find(i=>i.id===id);
+      btn.textContent='...';
+      const cap = await captureFor(3.5);
+      if(cap){ ins.levels=cap.levels; ins.fine=cap.fine; ins.capturedAt=Date.now(); }
+      renderInstrList(); saveProfile();
+      refreshRecommendations();
+      showNarrativeFor(ins);
+    }
+  });
+  $('instrList').addEventListener('change',(e)=>{
+    if(e.target.classList.contains('instr-name-edit')){
+      const ins = state.instruments.find(i=>i.id===e.target.dataset.id);
+      if(ins){ ins.name = e.target.value.trim()||ins.name; saveProfile(); }
+    } else if(e.target.classList.contains('tagSelect')){
+      const ins = state.instruments.find(i=>i.id===e.target.dataset.id);
+      if(ins){
+        ins.tag = e.target.value;
+        if(ins.tag==='drums') ins.role = null; // the toggle to edit it disappears — don't leave a stale value behind
+        renderInstrList(); saveProfile(); refreshRecommendations();
+      }
+    } else if(e.target.classList.contains('sourceSelect')){
+      const ins = state.instruments.find(i=>i.id===e.target.dataset.id);
+      if(ins){ ins.source = e.target.value || null; saveProfile(); refreshRecommendations(); }
+    } else if(e.target.classList.contains('gainSelect')){
+      const ins = state.instruments.find(i=>i.id===e.target.dataset.id);
+      if(ins){ ins.gainPos = e.target.value || null; saveProfile(); refreshRecommendations(); }
+    }
+  });
+  document.addEventListener('click',(e)=>{
+    const btn = e.target.closest('button[data-narr-ref]'); if(!btn) return;
+    captureInstrumentReference(btn.dataset.narrRef, ()=>{
+      const ins = state.instruments.find(i=>i.id===btn.dataset.narrRef);
+      showNarrativeFor(ins);
+      if($('guideNarrative').style.display==='block' && ins) $('guideNarrative').innerHTML = buildInstrumentNarrative(ins);
+    });
+  });
+
+  $('startGuideBtn').addEventListener('click', openGuide);
+  $('guideCaptureBtn').addEventListener('click', runGuideCapture);
+  $('guideSkipBtn').addEventListener('click',()=>{ state.guide.idx++; showGuideStep(); });
+  $('guideNextBtn').addEventListener('click',()=>{ state.guide.idx++; showGuideStep(); });
+  $('guideRedoBtn').addEventListener('click', runGuideCapture);
+  $('guideEndBtn').addEventListener('click', closeGuide);
+
+  $('captureMixBtn').addEventListener('click', captureFullMix);
+
+  /* ---- EQ hardware profile ---- */
+  $('eqTypeSelect').addEventListener('change',()=>{
+    state.eqProfile.type = $('eqTypeSelect').value;
+    $('eqGraphicRow').style.display = state.eqProfile.type==='graphic' ? 'block' : 'none';
+    $('eqMidSweepRow').style.display = state.eqProfile.type==='tone3' ? 'block' : 'none';
+    saveProfile(); refreshRecommendations();
+  });
+  $('eqGraphicBands').addEventListener('change',()=>{
+    state.eqProfile.graphicBands = parseGraphicBands($('eqGraphicBands').value);
+    saveProfile(); refreshRecommendations();
+  });
+  $('eqMidSweepToggle').addEventListener('click',()=>{
+    state.eqProfile.sweepableMid = !state.eqProfile.sweepableMid;
+    $('eqMidSweepToggle').textContent = 'Mid is sweepable: '+(state.eqProfile.sweepableMid?'Yes':'No');
+    saveProfile(); refreshRecommendations();
+  });
+  $('recList').addEventListener('click',(e)=>{
+    const btn = e.target.closest('button[data-dismiss]'); if(!btn) return;
+    if(!state.dismissed.includes(btn.dataset.dismiss)) state.dismissed.push(btn.dataset.dismiss);
+    saveProfile();
+    refreshRecommendations();
+  });
+
+  $('styleList').addEventListener('click',(e)=>{
+    const delBtn = e.target.closest('button[data-rmref]');
+    if(delBtn){
+      const id = delBtn.dataset.rmref;
+      state.referenceTargets = state.referenceTargets.filter(r=>r.id!==id);
+      if(state.styleId===id) state.styleId = STYLE_PRESETS[0].id;
+      renderStyleList(); saveProfile();
+      if(state.fullMix){ renderMixCompare(); refreshRecommendations(); }
+      return;
+    }
+    const card = e.target.closest('.styleCard'); if(!card) return;
+    state.styleId = card.dataset.id;
+    renderStyleList(); saveProfile();
+    if(state.fullMix){ renderMixCompare(); refreshRecommendations(); }
+  });
+
+  $('captureRefBtn').addEventListener('click', async ()=>{
+    if(!(state.source==='file' && state.running)){
+      alert('Load a track via "Recorded mix" on the Analyzer tab and make sure it\u2019s playing first.');
+      return;
+    }
+    const btn = $('captureRefBtn');
+    btn.disabled = true;
+    const cap = await captureFor(8, (p)=>{ btn.textContent = `Listening… ${Math.ceil(8*(1-p))}s`; });
+    btn.disabled = false;
+    btn.textContent = "Capture from what's playing (8s)";
+    if(!cap) return;
+    const name = $('refNameInput').value.trim() || state.currentFileName || ('Reference '+(state.referenceTargets.length+1));
+    const id = 'ref_'+uid();
+    state.referenceTargets.push({ id, name, curve: shapeRelativeToMid(cap.levels), fine: cap.fine, capturedAt: Date.now() });
+    state.styleId = id;
+    $('refNameInput').value='';
+    renderStyleList(); saveProfile();
+    if(state.fullMix){ renderMixCompare(); refreshRecommendations(); }
+  });
+
+  $('resetBtn').addEventListener('click', ()=>{
+    if(confirm('Clear all captured instruments and saved profile?')) resetProfile();
+  });
+
+  /* ---- Saved setups ---- */
+  $('saveSetupBtn').addEventListener('click', ()=>{
+    const name = $('setupNameInput').value.trim();
+    const res = saveCurrentAsSetup(name);
+    if(!res.ok){ alert('Couldn\u2019t save \u2014 storage might be full. Try deleting an old setup first.'); return; }
+    $('setupNameInput').value='';
+    renderSetupsList();
+  });
+  $('setupsList').addEventListener('click',(e)=>{
+    const btn = e.target.closest('button[data-act]'); if(!btn) return;
+    const id = btn.dataset.id;
+    const setup = state.setups.find(s=>s.id===id);
+    if(!setup) return;
+    if(btn.dataset.act==='load'){
+      if(confirm(`Load "${setup.name}"? This replaces your current working instruments, venue, and style.`)) loadSetup(id);
+    } else if(btn.dataset.act==='delete'){
+      if(confirm(`Delete "${setup.name}"? This can\u2019t be undone.`)){ deleteSetup(id); renderSetupsList(); $('compareResult').style.display='none'; }
+    } else if(btn.dataset.act==='rename'){
+      const name = prompt('Rename setup:', setup.name);
+      if(name){ renameSetup(id, name); renderSetupsList(); }
+    } else if(btn.dataset.act==='export'){
+      exportSetupFile(setup);
+    } else if(btn.dataset.act==='compare'){
+      renderCompareResult(setup, compareToSetup(setup));
+    }
+  });
+  $('importSetupBtn').addEventListener('click',()=>{ $('setupFileInput').click(); });
+  $('setupFileInput').addEventListener('change',(e)=>{
+    const f = e.target.files[0]; if(!f) return;
+    importSetupFile(f);
+    e.target.value = '';
+  });
+
+  /* ---- Venue: questionnaire ---- */
+  document.querySelectorAll('.qBlock').forEach(block=>{
+    const qkey = block.dataset.q;
+    block.querySelectorAll('.qOpts button').forEach(btn=>{
+      btn.addEventListener('click',()=>{
+        block.querySelectorAll('.qOpts button').forEach(b=>b.classList.remove('active'));
+        btn.classList.add('active');
+        state.venue[qkey] = btn.dataset.v;
+        refreshRecommendations();
+        saveProfile();
+      });
+    });
+  });
+
+  /* ---- Venue: units ---- */
+  $('unitMBtn').addEventListener('click',()=>setVenueUnit('m'));
+  $('unitFtBtn').addEventListener('click',()=>setVenueUnit('ft'));
+
+  /* ---- Venue: dimensions ---- */
+  $('calcModesBtn').addEventListener('click',()=>{
+    const lRaw=parseFloat($('dimL').value), wRaw=parseFloat($('dimW').value), hRaw=parseFloat($('dimH').value);
+    if(!lRaw||!wRaw||!hRaw){ $('modeResult').textContent='Enter all three dimensions first.'; return; }
+    const l=toMeters(lRaw), w=toMeters(wRaw), h=toMeters(hRaw);
+    state.venue.dims = {l,w,h};
+    renderModeResult(computeRoomModes(l,w,h));
+    refreshRecommendations();
+    saveProfile();
+  });
+
+  /* ---- Venue: camera + stage photo ---- */
+  $('startCamBtn').addEventListener('click', startCam);
+  $('capturePhotoBtn').addEventListener('click', capturePhoto);
+  $('retakePhotoBtn').addEventListener('click', retakePhoto);
+
+  $('stageCanvas').addEventListener('click',(e)=>{
+    const rect = e.target.getBoundingClientRect();
+    pendingPin = { x:(e.clientX-rect.left)/rect.width, y:(e.clientY-rect.top)/rect.height };
+    $('pinEditor').style.display='block';
+    $('pinLabelInput').value='';
+  });
+  $('pinChips').addEventListener('click',(e)=>{
+    const b=e.target.closest('button[data-chip]'); if(!b) return;
+    placePin(b.dataset.chip);
+  });
+  $('placePinBtn').addEventListener('click',()=>{
+    const val = $('pinLabelInput').value.trim();
+    if(val) placePin(val);
+  });
+  $('cancelPinBtn').addEventListener('click',()=>{ pendingPin=null; $('pinEditor').style.display='none'; });
+  $('pinList').addEventListener('click',(e)=>{
+    const b=e.target.closest('button[data-rmpin]'); if(!b) return;
+    state.venue.pins = state.venue.pins.filter(p=>p.id!==b.dataset.rmpin);
+    renderPins(); saveProfile();
+  });
+
+  /* ---- Venue: distances ---- */
+  $('addDistanceBtn').addEventListener('click',()=>{
+    $('addDistanceForm').style.display='block';
+    $('distFrom').value=''; $('distTo').value='';
+    $('distKnowInputs').style.display='none';
+    $('distUnit').value = state.venue.unit;
+  });
+  $('distCancelBtn').addEventListener('click',()=>{ $('addDistanceForm').style.display='none'; });
+  $('distKnowBtn').addEventListener('click',()=>{ $('distKnowInputs').style.display='block'; });
+  $('distSaveKnown').addEventListener('click',()=>{
+    const from=$('distFrom').value.trim(), to=$('distTo').value.trim();
+    const val=parseFloat($('distValue').value), unit=$('distUnit').value;
+    if(!from||!to||!val) return;
+    const meters = unit==='ft'? val*0.3048 : val;
+    state.venue.distances.push({id:uid(), from, to, meters, method:'known'});
+    $('addDistanceForm').style.display='none';
+    renderDistances(); saveProfile();
+  });
+  $('distWalkBtn').addEventListener('click',()=>{
+    const from=$('distFrom').value.trim(), to=$('distTo').value.trim();
+    if(!from||!to){ alert('Enter both a from and to label first.'); return; }
+    $('addDistanceForm').style.display='none';
+    openPaceOverlay(from,to);
+  });
+  $('distList').addEventListener('click',(e)=>{
+    const b=e.target.closest('button[data-rmdist]'); if(!b) return;
+    state.venue.distances = state.venue.distances.filter(d=>d.id!==b.dataset.rmdist);
+    renderDistances(); saveProfile();
+  });
+
+  /* ---- Venue: pace-off overlay ---- */
+  $('paceCancelBtn').addEventListener('click', closePaceOverlay);
+  $('paceTapMethod').addEventListener('click',()=>{
+    paceState.method='paced';
+    $('paceMethodPick').style.display='none';
+    $('paceTapUI').style.display='block';
+  });
+  $('paceTimeMethod').addEventListener('click',()=>{
+    paceState.method='timed';
+    $('paceMethodPick').style.display='none';
+    $('paceTimeUI').style.display='block';
+  });
+  $('strideLen').addEventListener('input',()=>{ $('strideLenVal').textContent=parseFloat($('strideLen').value).toFixed(2)+' '+unitLabel(); });
+  $('walkSpeed').addEventListener('input',()=>{ $('walkSpeedVal').textContent=parseFloat($('walkSpeed').value).toFixed(2)+' '+unitLabel()+'/s'; });
+  $('stepTapBtn').addEventListener('click',()=>{
+    paceState.steps++;
+    $('stepCount').textContent = paceState.steps;
+  });
+  $('stepDoneBtn').addEventListener('click',()=>{
+    const strideDisplay = parseFloat($('strideLen').value);
+    const distMeters = paceState.steps*toMeters(strideDisplay);
+    showPaceResult(distMeters, `${paceState.steps} steps \u00d7 ${strideDisplay.toFixed(2)} ${unitLabel()} stride`);
+  });
+  $('timeStartBtn').addEventListener('click',()=>{
+    paceState.startTime = performance.now();
+    $('timeStartBtn').style.display='none';
+    $('timeDoneBtn').style.display='block';
+    paceState.timerInterval = setInterval(()=>{
+      const el = (performance.now()-paceState.startTime)/1000;
+      $('timeCount').textContent = fmtTime(el);
+    }, 200);
+  });
+  $('timeDoneBtn').addEventListener('click',()=>{
+    clearInterval(paceState.timerInterval);
+    const el = (performance.now()-paceState.startTime)/1000;
+    const speedDisplay = parseFloat($('walkSpeed').value);
+    const distMeters = el*toMeters(speedDisplay);
+    showPaceResult(distMeters, `${el.toFixed(1)}s at ~${speedDisplay.toFixed(2)} ${unitLabel()}/s`);
+  });
+  $('paceRedoBtn').addEventListener('click',()=>{ openPaceOverlay(paceState.from, paceState.to); });
+  $('paceSaveBtn').addEventListener('click',()=>{
+    state.venue.distances.push({id:uid(), from:paceState.from, to:paceState.to, meters:paceState.result, method:paceState.method});
+    renderDistances(); saveProfile();
+    closePaceOverlay();
+  });
+}
+
+function showPaceResult(distMeters, method){
+  paceState.result = distMeters; // always stored in canonical meters
+  $('paceResult').style.display='block';
+  $('paceResult').textContent = `Guesstimate: about ${toDisplayUnit(distMeters).toFixed(1)} ${unitLabel()} (${method}). This is a rough estimate, not a measurement.`;
+  $('paceResultBtns').style.display='flex';
+}
+
+function fmtTime(s){ const m=Math.floor(s/60), r=Math.floor(s%60); return m+':'+String(r).padStart(2,'0'); }
+
+/* ---------- Init -----------------------------------------------------------*/
+async function init(){
+  buildBandGrid();
+  await loadProfile();
+  renderInstrList();
+  renderStyleList();
+  renderLog();
+  renderSetupsList();
+  hydrateVenueUI();
+  hydrateEqUI();
+  hydratePreviewUI();
+  updateNoiseFloorNote();
+  refreshRecommendations();
+  wireEvents();
+  resizeCanvas();
+  refreshMicDeviceList();
+  if(navigator.mediaDevices && navigator.mediaDevices.addEventListener){
+    navigator.mediaDevices.addEventListener('devicechange', refreshMicDeviceList);
+  }
+  requestAnimationFrame(drawFrame);
+}
+init();
+</script>
+
+<!-- app: Sideman · author: Benji (benjoOBS) · sideman-mix-analyzer -->
+</body>
+</html>
